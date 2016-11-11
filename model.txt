@@ -12,37 +12,57 @@ Model 1 (Simplest)
  Let SP := { sp_1, sp_2, ..., sp_p } be p stored procedures.
  Let W  := { T_1, T_2, ..., T_w } be w transactions in workload during the epoch.
  
- Define TSP(T) := stored procedure sp for transaction T
+ Notation: For transaction T_i, T_i.sp is its stored procedure in SP.
+ Notation: For transaction T_i, T_i.lat is the avg. execution time of stored procedure sp as observed in previous epoch(s).
  
  Simplification 1: All queries using a given stored procedure touch the same set of partitions.
+ Q: How to change the model if we observed that stored procedure touched set of partitions s_1 with probability p_1, s_2 with probability p_2, etc. ?
  
  Define SPS(sp) := { sites touched by stored procedure sp }
- Define LAT(sp) := avg. execution time of stored procedure sp as observed in previous epoch(s).
  
  Assertion 1: If intersection of SPS(TSP(T_i)) and SPS(TSP(T_j)) is non-empty (i.e. they touch a common site or sites), then T_i and T_j execute serially in some order.  
 
+ Ex. Consider a three sites s_1, s_2 and s_3 and a workload with three transactions T_1, T_2 and T_3.
+     T_1 uses all sites, T_2 uses site s_1 and T_3 uses site s_3.
+     Suppose T_2 and T_3 have latency of 500us and T_1 has latency of 1000us.
+ 
+     VoltDB determines a global ordering of transactions, and this schedule determines the level of concurrency.
+     For example, there are 6 possible orderings of T_1, T_2 and T_3.
+ 
+     Orderings T_2 <- T_3 <- T_1, T_3 <- T_2 <- T_1, T_1 <- T_2 <- T_3, T_1 <- T_3 <- T_2 have the lowest latency (max(500us, 1000us + 500us) = 1500us).
+     Orderings T_2 <- T_1 <- T_3, T_3 <- T_1 <- T_2 have the highest latency (500us + 1000us + 500us = 2000us).
+ 
+     There is 2/3 probability of the lowest latency schedule and a 1/3 probability of the highest latency schedule. Therefore the expected workload execution
+     time is (2/3)*1500 + (1/3)*2000 = 1666us.
+
  /// Get a worst case estimation of the workload execution time
  Define EstimateWorstCaseExecTime(W):
-    ssets = [] // sets of serially executing transactions
+    // Union-find data structure - a set of disjoint sets of sites. 
+    // Each set of sites contains a pointer to the set of transactions which execute serially.
+    siteSets = {}
+
+    // for each site, create a set with an empty set of serially executing transactions.
     foreach site s in S:
-        ssets.append({}) // maximum concurrency is number of sites
-    foreach transaction t_i in W:
-        foreach transaction t_j in W:
-            if t_i != t_j and intersection(SPS(TSP(t_i)), SPS(TSP(t_j))) is non-empty:
-                sset = find sset which contains t_i or t_j
-                if sset is not found:
-                    ssets.append({ t_i, t_j })
-                elif t_i in sset:
-                    sset = sset U { t_j }
-                elif t_j in sset:
-                    sset = sset U { t_i }
-    execTimes = [] // total execution times of transactions in ssets
-    foreach sset in ssets:
-        execTimes.append(sum of avg. latencies of transactions in sset)
+        siteSets.addSet(s, {})
 
-    return maximum execution time in execTimes
+    foreach transaction t in W:
+        sitesUsed = SPS(t.sp)
 
-Ex. Consider a three sites s_1, s_2 and s_3 and a workload with three transactions T_1, T_2 and T_3.
-    T_1 uses all sites, T_2 uses site s_1 and T_3 uses site s_3.
-    If the schedule of execution is T_1, T_2, T_3 then T_2 and T_3 may execute concurrently (lowest workload execution time).
-    However if the schedule is T_2, T_1, T_3 or T_3, T_1, T_2 then all transactions execute serially (highest workload execution time).
+        if sitesUsed.size == 1:
+            // Single-sited transaction, add to the list of transactions for the set containing the site.
+            siteSet = siteSets.find(sitesUsed[0])
+            siteSet.txns = siteSet.txns U {t}
+        else:
+            // Multi-site transaction, merge the sets containing sites the transaction executes at. 
+            siteSet = siteSets.find(sitesUsed[0])
+            foreach site in SPS(t.sp) / {sitesUsed[0]}:
+                siteSet' = siteSets.find(site)
+                if siteSet != siteSet':
+                    siteSets.mergeSets(siteSet, siteSets)
+            siteSet.txns = siteSet.txns U {t}
+
+    foreach siteSet in siteSets:
+        foreach transaction t in siteSet.txns:
+            siteSet.txnsExecTime += t.lat
+
+    return max txnsExecTime from siteSets
