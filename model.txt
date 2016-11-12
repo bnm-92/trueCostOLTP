@@ -35,7 +35,11 @@ Model 1 (Simplest)
      There is 2/3 probability of the lowest latency schedule and a 1/3 probability of the highest latency schedule. Therefore the expected workload execution
      time is (2/3)*1500 + (1/3)*2000 = 1666us.
 
-     Defined below are two functions EstimateBestCaseExecTime() and EstimateWorstCaseExecTime().
+     Defined below are two functions EstimateBestCaseExecTime() and EstimateWorstCaseExecTime(). To calculate the expected execution time, we would need to find
+     a parameter 'a' such that the expected execution time for the workload is calculated as a * EstimateBestCaseExecTime() + (1-a) * EstimateWorstCaseExecTime().
+
+ Q: We can directly calculate a from the tree in EstimateBestCaseExecTime(), but I think this may be expensive. What heuristics might we use to get a?
+    One simple idea (I think this bad but I'll record it here anyways) might be to set a to be the # of single-sited txns in W / # of txns in W.
 
  /// Get a best case estimation of workload execution time
  /// Idea: Get an estimation of workload execution time of a schedule with maximum possible concurrent execution of transactions.
