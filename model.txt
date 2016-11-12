@@ -35,6 +35,48 @@ Model 1 (Simplest)
      There is 2/3 probability of the lowest latency schedule and a 1/3 probability of the highest latency schedule. Therefore the expected workload execution
      time is (2/3)*1500 + (1/3)*2000 = 1666us.
 
+     Defined below are two functions EstimateBestCaseExecTime() and EstimateWorstCaseExecTime().
+
+ /// Get a best case estimation of workload execution time
+ /// Idea: Get an estimation of workload execution time of a schedule with maximum possible concurrent execution of transactions.
+ ///       * From "Assertion 1", two transactions which use disjoint sets of sites may execute concurrently.
+ Define EstimateBestCaseExecTime(W):
+    sort transactions in W in descending order of number of sites used
+
+    // Build a tree of transactions in which for a given node, all descendants are scheduled before the transaction
+    // of the current node. Siblings of the node may execute concurrently with it.
+
+    // root is a special node 
+    root = node( txn=null, parent=null, children=[] )
+    foreach transaction t in W:
+        parent = root
+        inserted = False
+
+        while not inserted:
+            if parent.children is empty:
+                parent.children.add(node( txn=t, parent=parent, children=[] ))
+                inserted = True
+            else:
+                conflictNodes = []
+
+                foreach node n in parent.children:
+                    if intersection(SPS(t.sp), SPS(n.txn)) is not empty:
+                        conflictNodes.add(n)
+
+                if conflictNodes is empty:
+                    parent.children.add(node( txn=t, parent=parent, children=[] ))
+                    inserted = True
+                elif conflictNodes.size == 1 and SPS(t.sp) < SPS(conflictNodes[0].txn.sp):
+                    parent = conflictNodes[0]
+                else:
+                    remove conflictNodes from parent.children
+                    parent.children.add(node( txn=t, parent=parent, children=conflictNodes ))
+                    inserted = True
+
+    // Determine the execution time of the schedule given by the tree
+    execTime = lambda(node): return node.txn.lat + max execTime of nodes in node.children
+    return execTime(root)
+
  /// Get a worst case estimation of the workload execution time
  Define EstimateWorstCaseExecTime(W):
     // Union-find data structure - a set of disjoint sets of sites. 
