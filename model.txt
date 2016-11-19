@@ -112,3 +112,92 @@ Model 1 (Simplest)
             siteSet.txnsExecTime += t.lat
 
     return max txnsExecTime from siteSets
+
+Model 2
+=======
+* Generate optimum repartitioning by solving as ILP problem
+* Statistics collected for each transaction T_i:
+  1. Stored Procedure
+  2. Sites Used
+  3. Initiator Host
+  4. Observed Execution Latency (call it "oblat_i")
+  5. For each Site S_j in "Sites Used", the total network cost associated with communicating with that Site. (call it "netlat_ij")
+     * If when the transaction was observed, the site was remote then record the actual latency.
+     * Otherwise, this latency needs to be estimated.
+
+  Then the "Local" Execution Latency of the transaction is the Observed Execution Latency - the maximum of all network costs of communicating with remote sites.
+  (call it "loclat_i")
+
+* Ex.
+
+Two hosts { H_1, H_2 }
+Four sites { S_1, S_2, S_3, S_4 }
+Transactions { T_1, T_2, T_3, T_4 }
+Site assignments: H_1: { S_1, S_2 }, H_2: { S_3, S_4 }
+
+T_1 touches { S_1, S_2, S_3 } and the initiator was host H_1
+T_2 touches { S_2, S_3 } and the initiator was host H_2
+T_3 touches { S_2 } and the initiator was host H_1
+T_4 touches { S_4 } and the initiator was host H_2
+
+oblat_1   = 5.05ms
+netlat_11 = 2.00ms (estimated)
+netlat_12 = 2.00ms (estimated)
+netlat_13 = 5.00ms (actual)
+netlat_14 = 0.00ms (unused)
+loclat_1  = 0.05ms
+
+oblat_2   = 2.52ms
+netlat_21 = 0.00ms (unused)
+netlat_22 = 2.00ms (actual)
+netlat_23 = 2.50ms (estimated)
+netlat_24 = 0.00ms (unused)
+loclat_2  = 0.02ms
+
+oblat_3   = 0.04ms
+netlat_31 = 0.00ms (unused)
+netlat_32 = 5.00ms (estimated) 
+netlat_33 = 0.00ms (unused)
+netlat_34 = 0.00ms (unused)
+loclat_3  = 0.04ms
+
+oblat_4   = 0.01ms
+netlat_41 = 0.00ms (unused)
+netlat_42 = 0.00ms (unused)
+netlat_43 = 0.00ms (unused)
+netlat_44 = 2.00ms (estimated)
+loclat_4  = 0.01ms
+
+Best Schedule: T_4 <- T_3 <- T_2 <- T_1
+Worst Schedule: T_4 <- T_3 <- T_2 <- T_1
+
+Let lat_1 be the latency of transaction T_1 when run on the optimum partitioning.
+Let lat_2 be the latency of transaction T_2 when run on the optimum partitioning.
+Let lat_3 be the latency of transaction T_3 when run on the optimum partitioning.
+Let lat_4 be the latency of transaction T_4 when run on the optimum partitioning.
+
+Constraint: lat_1 = loclat_1 + max( netlat_11 * a_12 + netlat_12 * a_22 + netlat_13 * a_32 )
+Constraint: lat_2 = loclat_2 + max( netlat_22 * a_21 + netlat_23 * a_31 )
+Constraint: lat_3 = loclat_3 + netlat_32 * a_32
+Constraint: lat_4 = loclat_4 + netlat_44 * a_41
+
+Minimize max( lat_4, lat_1 + lat_2 + lat_3 )
+
+Let a_ij's, 0 <= a_ij <= 1 for all i,j give the assignment of sites to hosts (a_ij = 1 iff site s_i assigned to host h_j).
+
+a_11 a_12
+a_21 a_22
+a_31 a_32
+a_41 a_42
+
+Constraint: a_11 + a_12 = 1
+Constraint: a_21 + a_22 = 1
+Constraint: a_31 + a_32 = 1
+Constraint: a_41 + a_42 = 1
+Constraint: 0 <= a_11 + a_21 + a_31 + a_41 <= 2
+Constraint: 0 <= a_12 + a_22 + a_32 + a_42 <= 2
+
+References
+* GLPK - https://www.gnu.org/software/glpk/#introduction
+* Using GLPK - http://www-sop.inria.fr/members/Frederic.Giroire/teaching/ubinet/pdfs/exercises-solvers.pdf
+* TODO: Find a Java front-end for GLPK (perhaps JavaILP - http://javailp.sourceforge.net/)
