@@ -129,75 +129,133 @@ Model 2
   (call it "loclat_i")
 
 * Ex.
+  
+  Two hosts { H_1, H_2 }
+  Four sites { S_1, S_2, S_3, S_4 }
+  Transactions { T_1, T_2, T_3, T_4 }
+  Site assignments: H_1: { S_1, S_2 }, H_2: { S_3, S_4 }
+  
+  T_1 touches { S_1, S_2, S_3 } and the initiator was host H_1
+  T_2 touches { S_2, S_3 } and the initiator was host H_2
+  T_3 touches { S_2 } and the initiator was host H_1
+  T_4 touches { S_4 } and the initiator was host H_2
+  
+  oblat_1   = 5.05ms
+  netlat_11 = 2.00ms (estimated)
+  netlat_12 = 2.00ms (estimated)
+  netlat_13 = 5.00ms (actual)
+  netlat_14 = 0.00ms (unused)
+  loclat_1  = 0.05ms
+  
+  oblat_2   = 2.02ms
+  netlat_21 = 0.00ms (unused)
+  netlat_22 = 2.00ms (actual)
+  netlat_23 = 2.50ms (estimated)
+  netlat_24 = 0.00ms (unused)
+  loclat_2  = 0.02ms
+  
+  oblat_3   = 0.04ms
+  netlat_31 = 0.00ms (unused)
+  netlat_32 = 5.00ms (estimated) 
+  netlat_33 = 0.00ms (unused)
+  netlat_34 = 0.00ms (unused)
+  loclat_3  = 0.04ms
+  
+  oblat_4   = 0.01ms
+  netlat_41 = 0.00ms (unused)
+  netlat_42 = 0.00ms (unused)
+  netlat_43 = 0.00ms (unused)
+  netlat_44 = 2.00ms (estimated)
+  loclat_4  = 0.01ms
+  
+  Best Schedule: T_4 <- T_3 <- T_2 <- T_1
+  Worst Schedule: T_4 <- T_3 <- T_2 <- T_1
+  
+  Let lat_1 be the latency of transaction T_1 when run on the optimum partitioning.
+  Let lat_2 be the latency of transaction T_2 when run on the optimum partitioning.
+  Let lat_3 be the latency of transaction T_3 when run on the optimum partitioning.
+  Let lat_4 be the latency of transaction T_4 when run on the optimum partitioning.
+  
+  Constraint: lat_1 = loclat_1 + max( netlat_11 * a_12 , netlat_12 * a_22 , netlat_13 * a_32 )
+  Constraint: lat_2 = loclat_2 + max( netlat_22 * a_21 , netlat_23 * a_31 )
+  Constraint: lat_3 = loclat_3 + netlat_32 * a_22
+  Constraint: lat_4 = loclat_4 + netlat_44 * a_41
+  
+  Minimize max( lat_4, lat_1 + lat_2 + lat_3 )
+  
+  Let a_ij's, 0 <= a_ij <= 1 for all i,j give the assignment of sites to hosts (a_ij = 1 iff site s_i assigned to host h_j).
+  
+  a_11 a_12
+  a_21 a_22
+  a_31 a_32
+  a_41 a_42
+  
+  Constraint: a_11 + a_12 = 1
+  Constraint: a_21 + a_22 = 1
+  Constraint: a_31 + a_32 = 1
+  Constraint: a_41 + a_42 = 1
+  Constraint: 0 <= a_11 + a_21 + a_31 + a_41 <= 2
+  Constraint: 0 <= a_12 + a_22 + a_32 + a_42 <= 2
 
-Two hosts { H_1, H_2 }
-Four sites { S_1, S_2, S_3, S_4 }
-Transactions { T_1, T_2, T_3, T_4 }
-Site assignments: H_1: { S_1, S_2 }, H_2: { S_3, S_4 }
+  Solution:
+  =========
 
-T_1 touches { S_1, S_2, S_3 } and the initiator was host H_1
-T_2 touches { S_2, S_3 } and the initiator was host H_2
-T_3 touches { S_2 } and the initiator was host H_1
-T_4 touches { S_4 } and the initiator was host H_2
+  H_1: { S_2, S_3 }, H_2: { S_1, S_4 }
 
-oblat_1   = 5.05ms
-netlat_11 = 2.00ms (estimated)
-netlat_12 = 2.00ms (estimated)
-netlat_13 = 5.00ms (actual)
-netlat_14 = 0.00ms (unused)
-loclat_1  = 0.05ms
+  Workload Execution Time: 4.61ms
 
-oblat_2   = 2.52ms
-netlat_21 = 0.00ms (unused)
-netlat_22 = 2.00ms (actual)
-netlat_23 = 2.50ms (estimated)
-netlat_24 = 0.00ms (unused)
-loclat_2  = 0.02ms
-
-oblat_3   = 0.04ms
-netlat_31 = 0.00ms (unused)
-netlat_32 = 5.00ms (estimated) 
-netlat_33 = 0.00ms (unused)
-netlat_34 = 0.00ms (unused)
-loclat_3  = 0.04ms
-
-oblat_4   = 0.01ms
-netlat_41 = 0.00ms (unused)
-netlat_42 = 0.00ms (unused)
-netlat_43 = 0.00ms (unused)
-netlat_44 = 2.00ms (estimated)
-loclat_4  = 0.01ms
-
-Best Schedule: T_4 <- T_3 <- T_2 <- T_1
-Worst Schedule: T_4 <- T_3 <- T_2 <- T_1
-
-Let lat_1 be the latency of transaction T_1 when run on the optimum partitioning.
-Let lat_2 be the latency of transaction T_2 when run on the optimum partitioning.
-Let lat_3 be the latency of transaction T_3 when run on the optimum partitioning.
-Let lat_4 be the latency of transaction T_4 when run on the optimum partitioning.
-
-Constraint: lat_1 = loclat_1 + max( netlat_11 * a_12 + netlat_12 * a_22 + netlat_13 * a_32 )
-Constraint: lat_2 = loclat_2 + max( netlat_22 * a_21 + netlat_23 * a_31 )
-Constraint: lat_3 = loclat_3 + netlat_32 * a_32
-Constraint: lat_4 = loclat_4 + netlat_44 * a_41
-
-Minimize max( lat_4, lat_1 + lat_2 + lat_3 )
-
-Let a_ij's, 0 <= a_ij <= 1 for all i,j give the assignment of sites to hosts (a_ij = 1 iff site s_i assigned to host h_j).
-
-a_11 a_12
-a_21 a_22
-a_31 a_32
-a_41 a_42
-
-Constraint: a_11 + a_12 = 1
-Constraint: a_21 + a_22 = 1
-Constraint: a_31 + a_32 = 1
-Constraint: a_41 + a_42 = 1
-Constraint: 0 <= a_11 + a_21 + a_31 + a_41 <= 2
-Constraint: 0 <= a_12 + a_22 + a_32 + a_42 <= 2
-
-References
-* GLPK - https://www.gnu.org/software/glpk/#introduction
-* Using GLPK - http://www-sop.inria.fr/members/Frederic.Giroire/teaching/ubinet/pdfs/exercises-solvers.pdf
-* TODO: Find a Java front-end for GLPK (perhaps JavaILP - http://javailp.sourceforge.net/)
+  Mixed-ILP in CPLEX (model2-example.lp):
+  ================== 
+  Minimize
+    obj: max1
+  Subject To
+    c1: a11 + a12 = 1
+    c2: a21 + a22 = 1
+    c3: a31 + a32 = 1
+    c4: a41 + a42 = 1
+    c5: a11 + a21 + a31 + a41 >= 0
+    c6: a11 + a21 + a31 + a41 <= 2
+    c7: a12 + a22 + a32 + a42 >= 0
+    c8: a12 + a22 + a32 + a42 <= 2
+    c9: lat4 - max1 <= 0
+    c10: lat1 + lat2 + lat3 - max1 <= 0
+    c11: 2 a12 - max2 <= 0
+    c12: 2 a22 - max2 <= 0
+    c13: 5 a32 - max2 <= 0
+    c15: 2 a21 - max3 <= 0
+    c16: 2.5 a31 - max3 <= 0
+    c17: lat1 - max2 = 0.05
+    c18: lat2 - max3 = 0.02
+    c19: lat3 - 5 a22 = 0.04
+    c20: lat4 - 2 a41 = 0.01
+  Bounds
+    0 <= lat1
+    0 <= lat2
+    0 <= lat3
+    0 <= lat4
+    0 <= max1
+    0 <= max2
+    0 <= max3
+    0 <= a11 <= 1
+    0 <= a21 <= 1
+    0 <= a31 <= 1
+    0 <= a41 <= 1
+    0 <= a12 <= 1
+    0 <= a22 <= 1
+    0 <= a32 <= 1
+    0 <= a42 <= 1
+  Binary
+    a11
+    a21
+    a31
+    a41
+    a12
+    a22
+    a32
+    a42
+  End
+  
+  References
+  * GLPK - https://www.gnu.org/software/glpk/#introduction
+  * Using GLPK - http://www-sop.inria.fr/members/Frederic.Giroire/teaching/ubinet/pdfs/exercises-solvers.pdf
+  * TODO: Find a Java front-end for GLPK (perhaps JavaILP - http://javailp.sourceforge.net/)
