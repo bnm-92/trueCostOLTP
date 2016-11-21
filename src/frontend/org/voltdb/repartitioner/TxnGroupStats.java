@@ -13,7 +13,7 @@ import java.util.Collections;
  * <li>Partitions Used</li>
  * </ul>
  */
-public class TxnGroupStats {
+public class TxnGroupStats implements Comparable<TxnGroupStats> {
 	/**
 	 * Key for this group (stored procedure, initiator, partitions used).
 	 */
@@ -60,8 +60,7 @@ public class TxnGroupStats {
 				if (m_numTransactions % 2 != 0) {
 					m_medianLatency = m_latencies.get(m_numTransactions / 2);
 				} else {
-					m_medianLatency = (m_latencies.get(m_numTransactions / 2 - 1)
-							+ m_latencies.get(m_numTransactions / 2)) / 2;
+					m_medianLatency = Math.round((float) (m_latencies.get(m_numTransactions / 2 - 1) + m_latencies.get(m_numTransactions / 2)) / 2);
 				}
 			} else {
 				m_medianLatency = m_latencies.get(0);
@@ -69,6 +68,11 @@ public class TxnGroupStats {
 		}
 
 		return m_medianLatency;
+	}
+	
+	public boolean isSinglePartition()
+	{
+		return m_key.isSinglePartition();
 	}
 
 	public String getProcedureName() {
@@ -85,5 +89,21 @@ public class TxnGroupStats {
 	
 	public int getNumTransactions() {
 		return m_numTransactions;
+	}
+
+	@Override
+	public int compareTo(TxnGroupStats o) {
+		if(getMedianLatency() < o.getMedianLatency())
+		{
+			return -1;
+		}
+		else if(getMedianLatency() == o.getMedianLatency())
+		{
+			return 0;
+		}
+		else
+		{
+			return 1;
+		}
 	}
 }
