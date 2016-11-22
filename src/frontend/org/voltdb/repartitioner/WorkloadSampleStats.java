@@ -10,44 +10,51 @@ import java.util.Map;
  */
 public class WorkloadSampleStats {
 	private static final int MAX_TRANSACTIONS_PER_GROUP = 1000;
+	
+	private TxnGroupStatsKey m_groupStatsKey = new TxnGroupStatsKey("", 0, 0);
 
 	private Map<TxnGroupStatsKey, ArrayList<TxnGroupStats>> m_stats = new HashMap<TxnGroupStatsKey, ArrayList<TxnGroupStats>>();
 
 	private ArrayList<TxnGroupStats> m_singlePartitionTxnStats = new ArrayList<TxnGroupStats>();
 
 	private ArrayList<TxnGroupStats> m_multiPartitionTxnStats = new ArrayList<TxnGroupStats>();
-	
-	public ArrayList<TxnGroupStats> getSinglePartitionTxnStats()
-	{
+
+	public ArrayList<TxnGroupStats> getSinglePartitionTxnStats() {
 		return m_singlePartitionTxnStats;
 	}
-	
-	public ArrayList<TxnGroupStats> getMultiPartitionTxnStats()
-	{
+
+	public ArrayList<TxnGroupStats> getMultiPartitionTxnStats() {
 		return m_multiPartitionTxnStats;
+	}
+	
+	public void addSinglePartitionTransaction(String procedureName, int initiatorHostId, int partition, int latency)
+	{
+		m_groupStatsKey.reset(procedureName, initiatorHostId, partition);
+		addTransaction(m_groupStatsKey, latency);
+	}
+	
+	public void addMultiPartitionTransaction(String procedureName, int initiatorHostId, int latency)
+	{
+		m_groupStatsKey.reset(procedureName, initiatorHostId);
+		addTransaction(m_groupStatsKey, latency);
 	}
 
 	/**
 	 * Add a transaction and its latency statistics to the workload sample
 	 * statistics.
 	 * 
-	 * @param procedureName
-	 *            transaction stored procedure name.
-	 * @param initiatorHostId
-	 *            host id of the initiator for the transaction when it ran.
-	 * @param partitions
-	 *            partitions used by the transaction.
+	 * @param groupStatsKey
+	 *            key for the transaction group this transaction's stats should
+	 *            be added to
 	 * @param latency
 	 *            transaction execution latency.
 	 */
-	public void addTransaction(String procedureName, int initiatorHostId, int[] partitions, int latency) {
-		// TODO: Maybe optimize away the creation of this key each time
-		TxnGroupStatsKey groupStatsKey = new TxnGroupStatsKey(procedureName, initiatorHostId, partitions);
+	public void addTransaction(TxnGroupStatsKey groupStatsKey, int latency) {
 		ArrayList<TxnGroupStats> groupStatsList = null;
 		TxnGroupStats groupStats = null;
 
 		if ((groupStatsList = m_stats.get(groupStatsKey)) != null) {
-			groupStats = groupStatsList.get(groupStatsList.size()-1);
+			groupStats = groupStatsList.get(groupStatsList.size() - 1);
 		} else {
 			groupStatsList = new ArrayList<TxnGroupStats>();
 			m_stats.put(groupStatsKey, groupStatsList);
@@ -66,5 +73,11 @@ public class WorkloadSampleStats {
 				m_multiPartitionTxnStats.add(groupStats);
 			}
 		}
+	}
+
+	public void clearStats() {
+		m_stats.clear();
+		m_singlePartitionTxnStats.clear();
+		m_multiPartitionTxnStats.clear();
 	}
 }

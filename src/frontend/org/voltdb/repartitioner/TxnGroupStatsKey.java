@@ -1,7 +1,5 @@
 package org.voltdb.repartitioner;
 
-import java.util.Arrays;
-
 /**
  * <p>
  * Key for grouping a set of transactions into a single set of statistics for
@@ -10,7 +8,7 @@ import java.util.Arrays;
  * <ul>
  * <li>Stored Procedure</li>
  * <li>Initiator</li>
- * <li>Partitions Used</li>
+ * <li>Single-Partitioned or Multi-(Every)-Partition</li>
  * </ul>
  */
 public class TxnGroupStatsKey {
@@ -25,9 +23,14 @@ public class TxnGroupStatsKey {
 	private int m_initiatorHostId;
 
 	/**
-	 * Partition(s) used.
+	 * Single-partitioned transactions? (Every-partition otherwise).
 	 */
-	private int m_partitions[];
+	private boolean m_isSinglePartition;
+
+	/**
+	 * Partition used.
+	 */
+	private int m_partition;
 
 	/**
 	 * Cached hash code.
@@ -45,25 +48,48 @@ public class TxnGroupStatsKey {
 	public TxnGroupStatsKey(String procedureName, int initiatorHostId, int partition) {
 		m_procedureName = procedureName;
 		m_initiatorHostId = initiatorHostId;
-		m_partitions = new int[] { partition };
+		m_partition = partition;
+		m_isSinglePartition = true;
 		m_hashCode = calcHashCode();
 	}
 
 	/**
-	 * Constructor for group of multi-partition transactions accessing the given
+	 * Constructor for group of multi-partition transactions accessing every
 	 * partitions with the given initiator.
 	 * 
 	 * @param procedureName
 	 * @param initiatorHostId
-	 * @param partition
 	 */
-	public TxnGroupStatsKey(String procedureName, int initiatorHostId, int[] partitions) {
-		assert (partitions != null);
-		assert (partitions.length > 0);
-
+	public TxnGroupStatsKey(String procedureName, int initiatorHostId) {
 		m_procedureName = procedureName;
 		m_initiatorHostId = initiatorHostId;
-		m_partitions = partitions.clone();
+		m_isSinglePartition = false;
+		m_hashCode = calcHashCode();
+	}
+	
+	/**
+	 * Reset the key to be for a group of single-partition transactions
+	 * with the given stored procedure, initiator host id and partition.
+	 */
+	public void reset(String procedureName, int initiatorHostId, int partition)
+	{
+		m_procedureName = procedureName;
+		m_initiatorHostId = initiatorHostId;
+		m_partition = partition;
+		m_isSinglePartition = true;
+		m_hashCode = calcHashCode();
+	}
+
+	/**
+	 * Reset the key to be for a group of multi-(every)-partition transactions
+	 * with the given stored procedure, initiator host id.
+	 */
+	public void reset(String procedureName, int initiatorHostId)
+	{
+		m_procedureName = procedureName;
+		m_initiatorHostId = initiatorHostId;
+		m_partition = 0;
+		m_isSinglePartition = false;
 		m_hashCode = calcHashCode();
 	}
 
@@ -75,12 +101,16 @@ public class TxnGroupStatsKey {
 		return m_initiatorHostId;
 	}
 
-	public int[] getPartitions() {
-		return m_partitions;
+	public boolean isSinglePartition() {
+		return m_isSinglePartition;
 	}
 
-	public boolean isSinglePartition() {
-		return m_partitions.length == 1;
+	public int getPartition() {
+		return m_partition;
+	}
+
+	public boolean isMultiPartition() {
+		return !isSinglePartition();
 	}
 
 	public int calcHashCode() {
@@ -89,7 +119,10 @@ public class TxnGroupStatsKey {
 
 		hash = m_procedureName.hashCode();
 		hash = prime * hash + m_initiatorHostId;
-		hash = prime * hash + Arrays.hashCode(m_partitions);
+		hash = prime * hash + (m_isSinglePartition ? 0 : 1);
+		if (m_isSinglePartition) {
+			hash = prime * hash + m_partition;
+		}
 
 		return hash;
 	}
@@ -115,19 +148,11 @@ public class TxnGroupStatsKey {
 			return false;
 		}
 
-		if (key.m_partitions.length != m_partitions.length) {
+		if (key.m_isSinglePartition != m_isSinglePartition) {
 			return false;
 		}
 
-		// Expect transactions to use a small number of partitions, two nested
-		// loops ok.
-		loopOverPartitions: for (int i = 0; i < m_partitions.length; ++i) {
-			for (int j = 0; j < key.m_partitions.length; ++j) {
-				if (m_partitions[i] == key.m_partitions[j]) {
-					continue loopOverPartitions;
-				}
-			}
-
+		if (m_isSinglePartition && key.m_partition != m_partition) {
 			return false;
 		}
 

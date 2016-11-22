@@ -99,7 +99,7 @@ public class TxnScheduleGraph {
 			assert (node.getTxnGroupStats() != null);
 			assert (node.getTxnGroupStats().isSinglePartition());
 
-			int partition = node.getTxnGroupStats().getPartitions()[0];
+			int partition = node.getTxnGroupStats().getPartition();
 			NodeChain partitionChain = m_concurrentNodes.get(partition);
 
 			if (partitionChain != null) {

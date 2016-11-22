@@ -83,8 +83,8 @@ public class TxnGroupStats implements Comparable<TxnGroupStats> {
 		return m_key.getInitiatorHostId();
 	}
 
-	public int[] getPartitions() {
-		return m_key.getPartitions();
+	public int getPartition() {
+		return m_key.getPartition();
 	}
 	
 	public int getNumTransactions() {
