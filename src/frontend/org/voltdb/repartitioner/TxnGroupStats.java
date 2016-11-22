@@ -1,8 +1,7 @@
 package org.voltdb.repartitioner;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Map;
+import java.util.Map.Entry;
 
 /**
  * <p>
@@ -31,16 +30,15 @@ public class TxnGroupStats implements Comparable<TxnGroupStats> {
 	private StatsList m_latencies = new StatsList();
 
 	/**
-	 * Cache the median latency calculated from all latencies in the group.
-	 */
-	private int m_medianLatency = -1;
-
-	/**
 	 * Record total network latencies for communication with each
 	 * partition if its site is remote.
-	 * 
 	 */
 	private Map<Integer, StatsList> m_remoteSiteNetworkLatencies;
+	
+	/**
+	 * Local latency of the transaction - latency if all sites are local.
+	 */
+	private int m_localLatency = -1;
 
 	public TxnGroupStats(TxnGroupStatsKey key) {
 		m_key = key;
@@ -53,17 +51,17 @@ public class TxnGroupStats implements Comparable<TxnGroupStats> {
 	
 	public void recordRemoteSiteNetworkLatency(int siteId, int latency)
 	{
-		StatsList latencies = m_remoteSiteNetworkLatencies.get(siteId);
+		StatsList siteLatencies = m_remoteSiteNetworkLatencies.get(siteId);
 		
-		if(latencies != null)
+		if(siteLatencies != null)
 		{
-			latencies.add(latency);
+			siteLatencies.add(latency);
 		}
 		else
 		{
-			latencies = new StatsList();
-			latencies.add(latency);
-			m_remoteSiteNetworkLatencies.put(siteId, latencies);
+			siteLatencies = new StatsList();
+			siteLatencies.add(latency);
+			m_remoteSiteNetworkLatencies.put(siteId, siteLatencies);
 		}
 	}
 	
@@ -73,14 +71,36 @@ public class TxnGroupStats implements Comparable<TxnGroupStats> {
 	
 	public int getMedianRemoteSiteNetworkLatency(int siteId)
 	{
-		StatsList latencies = m_remoteSiteNetworkLatencies.get(siteId);
+		StatsList siteLatencies = m_remoteSiteNetworkLatencies.get(siteId);
 		
-		if(latencies != null)
+		if(siteLatencies != null)
 		{
-			return latencies.getMedian();
+			return siteLatencies.getMedian();
 		}
 		
 		return 0;
+	}
+	
+	public int getLocalLatency()
+	{
+		if(m_localLatency < 0)
+		{
+			int maxRemoteSiteNetworkLatency = Integer.MIN_VALUE;
+			
+			for(Entry<Integer, StatsList> e : m_remoteSiteNetworkLatencies.entrySet())
+			{
+				StatsList siteLatencies = e.getValue();
+				
+				if(siteLatencies.getMedian() > maxRemoteSiteNetworkLatency)
+				{
+					maxRemoteSiteNetworkLatency = siteLatencies.getMedian();
+				}
+			}
+			
+			m_localLatency = Math.max(getMedianLatency() - maxRemoteSiteNetworkLatency, 0);
+		}
+		
+		return m_localLatency;
 	}
 	
 	public boolean isSinglePartition()

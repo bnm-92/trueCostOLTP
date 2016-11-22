@@ -85,6 +85,11 @@ public class TxnScheduleGraph {
 		public int getLength() {
 			return m_length;
 		}
+		
+		public boolean isEmpty()
+		{
+			return m_length == 0;
+		}
 	}
 
 	/**
@@ -112,7 +117,16 @@ public class TxnScheduleGraph {
 		}
 	}
 
-	private NodeChain m_nodeChain;
+	private NodeChain m_nodeChain = new NodeChain();
+	
+	public static float getBestCaseScheduleProbability(WorkloadSampleStats sample)
+	{
+		if(sample.getSinglePartitionTxnStats().isEmpty() && sample.getMultiPartitionTxnStats().isEmpty()) {
+			return 0;
+		}
+		
+		return (float) sample.getSinglePartitionTxnStats().size() / (float) (sample.getSinglePartitionTxnStats().size() +  sample.getMultiPartitionTxnStats().size());
+	}
 
 	/**
 	 * Get the best case schedule (lowest execution time). This is simply the
