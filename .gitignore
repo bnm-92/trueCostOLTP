@@ -20,3 +20,5 @@ obj/
 /.DS_Store
 debugoutput/
 /voltdbroot/
+.classpath
+.project

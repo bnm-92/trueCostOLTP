@@ -379,6 +379,11 @@ DISTRIBUTION
             <include name="third_party/cpp/jnilib/libjzmq*" />
         </fileset>
     </copy>
+    <copy todir="${dist.dir}/voltdb" flatten="true" >
+        <fileset dir="." defaultexcludes="yes">
+            <include name="third_party/cpp/jnilib/libglpk_java*" />
+        </fileset>
+    </copy>
 
     <!-- save the symbols from the shared library -->
     <exec dir='${dist.dir}/voltdb' executable='/bin/sh'>
