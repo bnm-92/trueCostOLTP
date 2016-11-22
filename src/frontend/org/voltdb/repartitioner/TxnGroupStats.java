@@ -2,6 +2,7 @@ package org.voltdb.repartitioner;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Map;
 
 /**
  * <p>
@@ -27,7 +28,7 @@ public class TxnGroupStats implements Comparable<TxnGroupStats> {
 	/**
 	 * Latencies for transactions in the group.
 	 */
-	private ArrayList<Integer> m_latencies = new ArrayList<Integer>();
+	private StatsList m_latencies = new StatsList();
 
 	/**
 	 * Cache the median latency calculated from all latencies in the group.
@@ -35,10 +36,11 @@ public class TxnGroupStats implements Comparable<TxnGroupStats> {
 	private int m_medianLatency = -1;
 
 	/**
-	 * TODO: Record total network latencies for communication with each
+	 * Record total network latencies for communication with each
 	 * partition if its site is remote.
 	 * 
 	 */
+	private Map<Integer, StatsList> m_remoteSiteNetworkLatencies;
 
 	public TxnGroupStats(TxnGroupStatsKey key) {
 		m_key = key;
@@ -48,26 +50,37 @@ public class TxnGroupStats implements Comparable<TxnGroupStats> {
 		m_numTransactions++;
 		m_latencies.add(latency);
 	}
-
-	public int getMedianLatency() {
-		// Group should not exist with no transactions.
-		assert (m_numTransactions > 0);
-
-		if (m_medianLatency == -1) {
-			if (m_numTransactions > 1) {
-				Collections.sort(m_latencies);
-
-				if (m_numTransactions % 2 != 0) {
-					m_medianLatency = m_latencies.get(m_numTransactions / 2);
-				} else {
-					m_medianLatency = Math.round((float) (m_latencies.get(m_numTransactions / 2 - 1) + m_latencies.get(m_numTransactions / 2)) / 2);
-				}
-			} else {
-				m_medianLatency = m_latencies.get(0);
-			}
+	
+	public void recordRemoteSiteNetworkLatency(int siteId, int latency)
+	{
+		StatsList latencies = m_remoteSiteNetworkLatencies.get(siteId);
+		
+		if(latencies != null)
+		{
+			latencies.add(latency);
 		}
-
-		return m_medianLatency;
+		else
+		{
+			latencies = new StatsList();
+			latencies.add(latency);
+			m_remoteSiteNetworkLatencies.put(siteId, latencies);
+		}
+	}
+	
+	public int getMedianLatency() {
+		return m_latencies.getMedian();
+	}
+	
+	public int getMedianRemoteSiteNetworkLatency(int siteId)
+	{
+		StatsList latencies = m_remoteSiteNetworkLatencies.get(siteId);
+		
+		if(latencies != null)
+		{
+			return latencies.getMedian();
+		}
+		
+		return 0;
 	}
 	
 	public boolean isSinglePartition()

@@ -10,7 +10,7 @@ import java.util.Map;
  */
 public class WorkloadSampleStats {
 	private static final int MAX_TRANSACTIONS_PER_GROUP = 1000;
-	
+
 	private TxnGroupStatsKey m_groupStatsKey = new TxnGroupStatsKey("", 0, 0);
 
 	private Map<TxnGroupStatsKey, ArrayList<TxnGroupStats>> m_stats = new HashMap<TxnGroupStatsKey, ArrayList<TxnGroupStats>>();
@@ -26,17 +26,73 @@ public class WorkloadSampleStats {
 	public ArrayList<TxnGroupStats> getMultiPartitionTxnStats() {
 		return m_multiPartitionTxnStats;
 	}
-	
-	public void addSinglePartitionTransaction(String procedureName, int initiatorHostId, int partition, int latency)
-	{
+
+	/**
+	 * Add a single-partition transaction to the workload sample statistics.
+	 * 
+	 * @param procedureName
+	 * @param initiatorHostId
+	 * @param partition
+	 * @param latency
+	 */
+	public void addSinglePartitionTransaction(String procedureName, int initiatorHostId, int partition, int latency) {
 		m_groupStatsKey.reset(procedureName, initiatorHostId, partition);
 		addTransaction(m_groupStatsKey, latency);
 	}
-	
-	public void addMultiPartitionTransaction(String procedureName, int initiatorHostId, int latency)
-	{
+
+	/**
+	 * Add a multi-(every)-partition transaction to the workload sample
+	 * statistics.
+	 * 
+	 * @param procedureName
+	 * @param initiatorHostId
+	 * @param latency
+	 */
+	public void addMultiPartitionTransaction(String procedureName, int initiatorHostId, int latency) {
 		m_groupStatsKey.reset(procedureName, initiatorHostId);
 		addTransaction(m_groupStatsKey, latency);
+	}
+
+	/**
+	 * Record the total network latency of communication with the given site
+	 * (assuming it is remote) for a single-partition transaction to the
+	 * workload sample statistics.
+	 * 
+	 * @param procedureName
+	 * @param initiatorHostId
+	 * @param partition
+	 * @param siteId
+	 * @param latency
+	 */
+	public void recordRemoteSiteNetworkLatency(String procedureName, int initiatorHostId, int partition, int siteId,
+			int latency) {
+		m_groupStatsKey.reset(procedureName, initiatorHostId, partition);
+		recordRemoteSiteNetworkLatency(m_groupStatsKey, siteId, latency);
+	}
+
+	/**
+	 * Record the total network latency of communication with the given site
+	 * (assuming it is remote) for a multi-(every)-partition transaction to the
+	 * workload sample statistics.
+	 * 
+	 * @param procedureName
+	 * @param initiatorHostId
+	 * @param partition
+	 * @param siteId
+	 * @param latency
+	 */
+	public void recordRemoteSiteNetworkLatency(String procedureName, int initiatorHostId, int siteId, int latency) {
+		m_groupStatsKey.reset(procedureName, initiatorHostId);
+		recordRemoteSiteNetworkLatency(m_groupStatsKey, siteId, latency);
+	}
+
+	private void recordRemoteSiteNetworkLatency(TxnGroupStatsKey groupStatsKey, int siteId, int latency) {
+		ArrayList<TxnGroupStats> groupStatsList = m_stats.get(groupStatsKey);
+
+		assert (groupStatsList != null);
+		assert (!groupStatsList.isEmpty());
+
+		groupStatsList.get(groupStatsList.size() - 1).recordRemoteSiteNetworkLatency(siteId, latency);
 	}
 
 	/**
@@ -49,7 +105,7 @@ public class WorkloadSampleStats {
 	 * @param latency
 	 *            transaction execution latency.
 	 */
-	public void addTransaction(TxnGroupStatsKey groupStatsKey, int latency) {
+	private void addTransaction(TxnGroupStatsKey groupStatsKey, int latency) {
 		ArrayList<TxnGroupStats> groupStatsList = null;
 		TxnGroupStats groupStats = null;
 
