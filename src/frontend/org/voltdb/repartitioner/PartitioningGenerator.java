@@ -6,7 +6,10 @@ import java.util.Map;
 
 import net.sf.javailp.Linear;
 import net.sf.javailp.Operator;
+import net.sf.javailp.OptType;
 import net.sf.javailp.Problem;
+import net.sf.javailp.Result;
+import net.sf.javailp.Solver;
 import net.sf.javailp.SolverFactory;
 import net.sf.javailp.SolverFactoryGLPK;
 import net.sf.javailp.VarType;
@@ -188,42 +191,149 @@ public class PartitioningGenerator {
 			m_ilp.setVarType(latencyVariable, VarType.REAL);
 			m_ilp.setVarLowerBound(latencyVariable, 0);
 			groupStats.setLatencyVariable(latencyVariable);
-			
+
 			// Introduce a new maximum variable
 			m_ilp.setVarType(maxVariable, VarType.REAL);
 			m_ilp.setVarLowerBound(maxVariable, 0);
 			groupStats.setLatencyVariable(maxVariable);
-			
-			// Add constraints to determine the maximum of all remote partition latencies
+
+			// Add constraints to determine the maximum of all remote partition
+			// latencies
 			hostIndex = m_hostIdToIndex.get(groupStats.getInitiatorHostId());
-			for(int partition : m_allPartitionIds)
-			{
-				if(groupStats.getMedianRemotePartitionNetworkLatency(partition) != 0)
-				{
+			for (int partition : m_allPartitionIds) {
+				if (groupStats.getMedianRemotePartitionNetworkLatency(partition) != 0) {
 					partitionIndex = m_partitionIdToIndex.get(partition);
 					int totalRemoteLatency = groupStats.getNumTransactions()
 							* groupStats.getMedianRemotePartitionNetworkLatency(partition);
-					
+
 					constraintLHS = new Linear();
-					
+
 					constraintLHS.add(totalRemoteLatency, m_partitionAssignmentVariables[partitionIndex][hostIndex]);
 					constraintLHS.add(1, maxVariable);
-					
+
 					m_ilp.add(constraintLHS, Operator.GE, totalRemoteLatency);
 				}
 			}
-			
+
 			// Add constraint for latency
 			int totalLocalLatency = groupStats.getNumTransactions() * groupStats.getLocalLatency();
-			
+
 			constraintLHS = new Linear();
 			constraintLHS.add(1, latencyVariable);
 			constraintLHS.add(-1, maxVariable);
-			
+
 			m_ilp.add(constraintLHS, Operator.EQ, totalLocalLatency);
 		}
 
-		return null;
+		// Add constraints to determine the execution time of the best schedule
+		TxnScheduleGraph bestSchedule = TxnScheduleGraph.getBestCaseSchedule(sample);
+		TxnScheduleGraph.BaseNode currScheduleNode = bestSchedule.getNodeChain().getHeadNode();
+
+		constraintLHS = new Linear();
+
+		m_ilp.setVarType("best", VarType.REAL);
+		m_ilp.setVarLowerBound("best", 0);
+
+		while (currScheduleNode != null) {
+			if (currScheduleNode instanceof TxnScheduleGraph.SerialNode) {
+				constraintLHS.add(1,
+						((TxnScheduleGraph.SerialNode) currScheduleNode).getTxnGroupStats().getLatencyVariable());
+			} else if (currScheduleNode instanceof TxnScheduleGraph.ConcurrentNode) {
+				// Introduce variable/constraint to determine max execution time
+				// of concurrent node
+				String maxVariable = makeVariable("max", maxVariableIndex++);
+
+				for (TxnScheduleGraph.NodeChain nodeChain : ((TxnScheduleGraph.ConcurrentNode) currScheduleNode)
+						.getNodeChains()) {
+					Linear maxConstraintLHS = new Linear();
+					TxnScheduleGraph.SerialNode currChainNode = (TxnScheduleGraph.SerialNode) nodeChain.getHeadNode();
+
+					while (currChainNode != null) {
+						maxConstraintLHS.add(1, currChainNode.getTxnGroupStats().getLatencyVariable());
+						currChainNode = (TxnScheduleGraph.SerialNode) currChainNode.getNextNode();
+					}
+
+					maxConstraintLHS.add(-1, maxVariable);
+					m_ilp.add(maxConstraintLHS, Operator.LE, 0);
+				}
+
+				constraintLHS.add(1, maxVariable);
+			}
+
+			currScheduleNode = currScheduleNode.getNextNode();
+		}
+
+		constraintLHS.add(-1, "best");
+		m_ilp.add(constraintLHS, Operator.EQ, 0);
+
+		// Add constraints to determine the execution time of the worst schedule
+		TxnScheduleGraph worstSchedule = TxnScheduleGraph.getWorstCaseSchedule(sample);
+
+		constraintLHS = new Linear();
+
+		m_ilp.setVarType("worst", VarType.REAL);
+		m_ilp.setVarLowerBound("worst", 0);
+
+		while (currScheduleNode != null) {
+			if (currScheduleNode instanceof TxnScheduleGraph.SerialNode) {
+				constraintLHS.add(1,
+						((TxnScheduleGraph.SerialNode) currScheduleNode).getTxnGroupStats().getLatencyVariable());
+			} else if (currScheduleNode instanceof TxnScheduleGraph.ConcurrentNode) {
+				// Introduce variable/constraint to determine max execution time
+				// of concurrent node
+				String maxVariable = makeVariable("max", maxVariableIndex++);
+
+				for (TxnScheduleGraph.NodeChain nodeChain : ((TxnScheduleGraph.ConcurrentNode) currScheduleNode)
+						.getNodeChains()) {
+					Linear maxConstraintLHS = new Linear();
+					TxnScheduleGraph.SerialNode currChainNode = (TxnScheduleGraph.SerialNode) nodeChain.getHeadNode();
+
+					while (currChainNode != null) {
+						maxConstraintLHS.add(1, currChainNode.getTxnGroupStats().getLatencyVariable());
+						currChainNode = (TxnScheduleGraph.SerialNode) currChainNode.getNextNode();
+					}
+
+					maxConstraintLHS.add(-1, maxVariable);
+					m_ilp.add(maxConstraintLHS, Operator.LE, 0);
+				}
+
+				constraintLHS.add(1, maxVariable);
+			}
+
+			currScheduleNode = currScheduleNode.getNextNode();
+		}
+
+		constraintLHS.add(-1, "worst");
+		m_ilp.add(constraintLHS, Operator.EQ, 0);
+
+		// Add the objective function
+		float bestScheduleProbability = TxnScheduleGraph.getBestCaseScheduleProbability(sample);
+
+		constraintLHS = new Linear();
+		constraintLHS.add(bestScheduleProbability, "best");
+		constraintLHS.add((1 - bestScheduleProbability), "worst");
+
+		m_ilp.setObjective(constraintLHS, OptType.MIN);
+
+		// Solve
+		Solver solver = m_solverFactory.get();
+		Result result = solver.solve(m_ilp);
+
+		Map<Integer, ArrayList<Integer>> partitionMapping = new HashMap<Integer, ArrayList<Integer>>();
+
+		for (int j = 0; j < m_numHosts; ++j) {
+			ArrayList<Integer> hostPartitions = new ArrayList<Integer>();
+
+			for (int i = 0; i < m_numPartitions; ++i) {
+				if ((Integer) result.get(m_partitionAssignmentVariables[i][j]) == 1) {
+					hostPartitions.add(m_partitionIndexToId.get(i + 1));
+				}
+			}
+
+			partitionMapping.put(m_hostIndexToId.get(j + 1), hostPartitions);
+		}
+
+		return partitionMapping;
 	}
 
 	private String makeVariable(String prefix, int index) {

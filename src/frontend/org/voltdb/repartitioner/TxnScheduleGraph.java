@@ -1,6 +1,6 @@
 package org.voltdb.repartitioner;
 
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -115,9 +115,19 @@ public class TxnScheduleGraph {
 				m_concurrentNodes.put(partition, partitionChain);
 			}
 		}
+		
+		public Collection<NodeChain> getNodeChains()
+		{
+			return m_concurrentNodes.values();
+		}
 	}
 
 	private NodeChain m_nodeChain = new NodeChain();
+	
+	public NodeChain getNodeChain()
+	{
+		return m_nodeChain;
+	}
 	
 	public static float getBestCaseScheduleProbability(WorkloadSampleStats sample)
 	{
