@@ -1,5 +1,9 @@
 package org.voltdb.repartitioner;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+
 import net.sf.javailp.Linear;
 import net.sf.javailp.Operator;
 import net.sf.javailp.Problem;
@@ -13,27 +17,52 @@ import net.sf.javailp.VarType;
  *
  */
 public class PartitioningGenerator {
+	
 	/**
 	 * Factory for instances of the ILP solver.
 	 */
 	private SolverFactory m_solverFactory;
 	
 	/**
-	 * All partition ids.
-	 * In ILP, partition i is the i^th partition in the array.
+	 * Map from host-id to host index (h_1, ..., h_m) in the ILP.
 	 */
-	private int[] m_allPartitions;
+	private Map<Integer, Integer> m_hostIdToIndex = new HashMap<Integer, Integer>();
 	
+	/**
+	 * Map from host index in ILP to host-id.
+	 */
+	private Map<Integer, Integer> m_hostIndexToId = new HashMap<Integer, Integer>();
+	
+	/**
+	 * Map from partition-id to partition index (p_1, ..., p_n) in the ILP.
+	 */
+	private Map<Integer, Integer> m_partitionIdToIndex = new HashMap<Integer, Integer>();
+	
+	/**
+	 * Map from partition index to partition-id in the ILP.
+	 */
+	private Map<Integer, Integer> m_partitionIndexToId = new HashMap<Integer, Integer>();
+	
+	/**
+	 * Map from a host-id to a list of its site-id's.
+	 */
+	private Map<Integer, ArrayList<Integer>> m_hostIdToSiteIds;
+	
+	/**
+	 * Matrix of variables p_ij : p_ij = 1 iff partition i is assigned to host j
+	 */
+	private String[][] m_partitionAssignmentVariables;
+
 	/**
 	 * Number of partitions.
 	 */
 	private int m_numPartitions;
-	
+
 	/**
 	 * Number of hosts in cluster.
 	 */
 	private int m_numHosts;
-	
+
 	/**
 	 * Maximum number of partitions per host.
 	 */
@@ -45,115 +74,111 @@ public class PartitioningGenerator {
 	private Problem m_ilp;
 	
 	/**
-	 * Matrix of variables p_ij.
-	 * 1 <= i <= numSites
-	 * 1 <= j <= numHosts
-	 * p_ij = 1 iff partition i is assigned to host j
+	 * Use a StringBuilder to make variable names for ILP for efficiency.
 	 */
-	private String[][] m_partitionAssignmentVars;
+	private StringBuilder m_varNameBuilder = new StringBuilder();
 
-	/**
-	 * Constructor for a PartitioningGenerator for a cluster with the given
-	 * number of sites and hosts.
-	 * 
-	 * @param numSites
-	 * @param numHosts
-	 */
-	public PartitioningGenerator(int[] allPartitions, int numHosts, int maxPartitionsPerHost) {
+	public PartitioningGenerator(int[] allHostIds, int[] allPartitionIds, Map<Integer, ArrayList<Integer>> hostToSiteIds, int maxPartitionsPerHost) {
 		m_solverFactory = new SolverFactoryGLPK();
 		
-		assert (allPartitions != null);
-		assert (allPartitions.length > 0);
+		assert(allHostIds != null);
+		assert(allHostIds.length > 0);
 		
-		m_allPartitions = allPartitions.clone();
-		m_numPartitions = allPartitions.length;
+		m_numHosts = allHostIds.length;
+		for(int i = 0; i < m_numHosts; ++i)
+		{
+			m_hostIdToIndex.put(allHostIds[i], i+1);
+			m_hostIndexToId.put(i+1, allHostIds[i]);
+		}
 		
-		assert (numHosts * maxPartitionsPerHost >= m_numPartitions);
-
-		m_numHosts = numHosts;
+		assert(allPartitionIds != null);
+		assert(allPartitionIds.length > 0);
+		
+		m_numPartitions = allPartitionIds.length;
+		for(int i=0; i < m_numPartitions; ++i)
+		{
+			m_partitionIdToIndex.put(allPartitionIds[i], i+1);
+			m_partitionIndexToId.put(i+1, allPartitionIds[i]);
+		}
+		
 		m_maxPartitionsPerHost = maxPartitionsPerHost;
+		assert(m_numHosts * m_maxPartitionsPerHost >= m_numPartitions);
+		
+		assert(hostToSiteIds != null);
+		assert(hostToSiteIds.size() == m_numHosts);
+		m_hostIdToSiteIds = hostToSiteIds;
 		
 		createPartitionAssignmentVars();
 	}
 	
-	private String makeVariable(StringBuilder sb, String prefix, int index)
-	{
+	private String makeVariable(String prefix, int index) {
 		String variable = null;
-		
-		sb.append(prefix);
-		sb.append('_');
-		sb.append(index);
-		
-		variable = sb.toString();
-		sb.delete(0, variable.length());
-		
+
+		m_varNameBuilder.append(prefix);
+		m_varNameBuilder.append('_');
+		m_varNameBuilder.append(index);
+
+		variable = m_varNameBuilder.toString();
+		m_varNameBuilder.delete(0, variable.length());
+
 		return variable;
 	}
-	
-	private String makeVariable(StringBuilder sb, String prefix, int index1, int index2)
-	{
+
+	private String makeVariable(String prefix, int index1, int index2) {
 		String variable = null;
-		
-		sb.append(prefix);
-		sb.append('_');
-		sb.append(index1);
-		sb.append(index2);
-		
-		variable = sb.toString();
-		sb.delete(0, variable.length());
-		
+
+		m_varNameBuilder.append(prefix);
+		m_varNameBuilder.append('_');
+		m_varNameBuilder.append(index1);
+		m_varNameBuilder.append(index2);
+
+		variable = m_varNameBuilder.toString();
+		m_varNameBuilder.delete(0, variable.length());
+
 		return variable;
 	}
-	
-	private void createPartitionAssignmentVars()
-	{
+
+	private void createPartitionAssignmentVars() {
 		StringBuilder sb = new StringBuilder();
-		
-		m_partitionAssignmentVars = new String[m_numPartitions][m_numHosts];
-		
-		for(int i = 1; i <= m_numPartitions; ++i)
-		{
-			for(int j = 1; j <= m_numHosts; ++j)
-			{
-				m_partitionAssignmentVars[i-1][j-1] = makeVariable(sb, "p", i, j);
+
+		m_partitionAssignmentVariables = new String[m_numPartitions][m_numHosts];
+
+		for (int i = 1; i <= m_numPartitions; ++i) {
+			for (int j = 1; j <= m_numHosts; ++j) {
+				m_partitionAssignmentVariables[i - 1][j - 1] = makeVariable("p", i, j);
 			}
 		}
 	}
-	
-	private void addPartitionAssignmentConstraints()
-	{
+
+	private void addPartitionAssignmentConstraints() {
 		// Add binary variables p_ij
-		for(int i = 0; i < m_numPartitions; ++i)
-		{
-			for(int j = 0; j < m_numHosts; ++j)
-			{
-				m_ilp.setVarType(m_partitionAssignmentVars[i][j], VarType.BOOL);
+		for (int i = 0; i < m_numPartitions; ++i) {
+			for (int j = 0; j < m_numHosts; ++j) {
+				m_ilp.setVarType(m_partitionAssignmentVariables[i][j], VarType.BOOL);
 			}
 		}
-		
+
 		// Add constraints so that each partition is only assigned to one host
-		for(int i = 0; i < m_numPartitions; ++i)
-		{
+		for (int i = 0; i < m_numPartitions; ++i) {
 			Linear constraintLHS = new Linear();
-			
-			for(int j = 0; j < m_numHosts; ++j)
-			{
-				constraintLHS.add(1, m_partitionAssignmentVars[i][j]);
+
+			for (int j = 0; j < m_numHosts; ++j) {
+				constraintLHS.add(1, m_partitionAssignmentVariables[i][j]);
 			}
-			
+
 			m_ilp.add(constraintLHS, Operator.EQ, 1);
 		}
-		
-		// Add constraints so that each host has less than equal to the maximum number of partitions per host
-		for(int j = 0; j < m_numHosts; ++j)
-		{
+
+		// Add constraints so that each host has less than equal to the maximum
+		// number of partitions per host
+		for (int j = 0; j < m_numHosts; ++j) {
 			Linear constraintLHS = new Linear();
-			
-			for(int i = 0; i < m_numPartitions; ++i)
-			{
-				constraintLHS.add(1, m_partitionAssignmentVars[i][j]);
+
+			for (int i = 0; i < m_numPartitions; ++i) {
+				constraintLHS.add(1, m_partitionAssignmentVariables[i][j]);
 			}
-			
+
+			m_ilp.add(constraintLHS, Operator.GE, 0);
 			m_ilp.add(constraintLHS, Operator.LE, m_maxPartitionsPerHost);
 		}
 	}

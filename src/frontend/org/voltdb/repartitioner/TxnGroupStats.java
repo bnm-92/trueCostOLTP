@@ -33,7 +33,7 @@ public class TxnGroupStats implements Comparable<TxnGroupStats> {
 	 * Record total network latencies for communication with each
 	 * partition if its site is remote.
 	 */
-	private Map<Integer, StatsList> m_remoteSiteNetworkLatencies;
+	private Map<Integer, StatsList> m_remotePartitionNetworkLatencies;
 	
 	/**
 	 * Local latency of the transaction - latency if all sites are local.
@@ -51,21 +51,21 @@ public class TxnGroupStats implements Comparable<TxnGroupStats> {
 		m_latencies.add(latency);
 	}
 	
-	public void recordRemoteSiteNetworkLatency(int siteId, int latency, boolean isEstimate)
+	public void recordRemotePartitionNetworkLatency(int partition, int latency, boolean isEstimate)
 	{
 		assert(latency >= 0);
 		
-		StatsList siteLatencies = m_remoteSiteNetworkLatencies.get(siteId);
+		StatsList latencies = m_remotePartitionNetworkLatencies.get(partition);
 		
-		if(siteLatencies != null)
+		if(latencies != null)
 		{
-			siteLatencies.add(latency);
+			latencies.add(latency);
 		}
 		else
 		{
-			siteLatencies = new StatsList(isEstimate);
-			siteLatencies.add(latency);
-			m_remoteSiteNetworkLatencies.put(siteId, siteLatencies);
+			latencies = new StatsList(isEstimate);
+			latencies.add(latency);
+			m_remotePartitionNetworkLatencies.put(partition, latencies);
 		}
 	}
 	
@@ -73,13 +73,13 @@ public class TxnGroupStats implements Comparable<TxnGroupStats> {
 		return m_latencies.getMedian();
 	}
 	
-	public int getMedianRemoteSiteNetworkLatency(int siteId)
+	public int getMedianRemotePartitionNetworkLatency(int partition)
 	{
-		StatsList siteLatencies = m_remoteSiteNetworkLatencies.get(siteId);
+		StatsList latencies = m_remotePartitionNetworkLatencies.get(partition);
 		
-		if(siteLatencies != null)
+		if(latencies != null)
 		{
-			return siteLatencies.getMedian();
+			return latencies.getMedian();
 		}
 		
 		return 0;
@@ -89,19 +89,19 @@ public class TxnGroupStats implements Comparable<TxnGroupStats> {
 	{
 		if(m_localLatency < 0)
 		{
-			int maxRemoteSiteNetworkLatency = Integer.MIN_VALUE;
+			int maxRemotePartitionNetworkLatency = Integer.MIN_VALUE;
 			
-			for(Entry<Integer, StatsList> e : m_remoteSiteNetworkLatencies.entrySet())
+			for(Entry<Integer, StatsList> e : m_remotePartitionNetworkLatencies.entrySet())
 			{
-				StatsList siteLatencies = e.getValue();
+				StatsList latencies = e.getValue();
 				
-				if(!siteLatencies.isEstimates() && siteLatencies.getMedian() > maxRemoteSiteNetworkLatency)
+				if(!latencies.isEstimates() && latencies.getMedian() > maxRemotePartitionNetworkLatency)
 				{
-					maxRemoteSiteNetworkLatency = siteLatencies.getMedian();
+					maxRemotePartitionNetworkLatency = latencies.getMedian();
 				}
 			}
 			
-			m_localLatency = Math.max(getMedianLatency() - maxRemoteSiteNetworkLatency, 0);
+			m_localLatency = Math.max(getMedianLatency() - maxRemotePartitionNetworkLatency, 0);
 		}
 		
 		return m_localLatency;
