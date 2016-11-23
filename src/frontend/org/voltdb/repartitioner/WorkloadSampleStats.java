@@ -63,11 +63,12 @@ public class WorkloadSampleStats {
 	 * @param partition
 	 * @param siteId
 	 * @param latency
+	 * @param isEstimate
 	 */
 	public void recordRemoteSiteNetworkLatency(String procedureName, int initiatorHostId, int partition, int siteId,
-			int latency) {
+			int latency, boolean isEstimate) {
 		m_groupStatsKey.reset(procedureName, initiatorHostId, partition);
-		recordRemoteSiteNetworkLatency(m_groupStatsKey, siteId, latency);
+		recordRemoteSiteNetworkLatency(m_groupStatsKey, siteId, latency, isEstimate);
 	}
 
 	/**
@@ -80,19 +81,20 @@ public class WorkloadSampleStats {
 	 * @param partition
 	 * @param siteId
 	 * @param latency
+	 * @param isEstimate
 	 */
-	public void recordRemoteSiteNetworkLatency(String procedureName, int initiatorHostId, int siteId, int latency) {
+	public void recordRemoteSiteNetworkLatency(String procedureName, int initiatorHostId, int siteId, int latency, boolean isEstimate) {
 		m_groupStatsKey.reset(procedureName, initiatorHostId);
-		recordRemoteSiteNetworkLatency(m_groupStatsKey, siteId, latency);
+		recordRemoteSiteNetworkLatency(m_groupStatsKey, siteId, latency, isEstimate);
 	}
 
-	private void recordRemoteSiteNetworkLatency(TxnGroupStatsKey groupStatsKey, int siteId, int latency) {
+	private void recordRemoteSiteNetworkLatency(TxnGroupStatsKey groupStatsKey, int siteId, int latency, boolean isEstimate) {
 		ArrayList<TxnGroupStats> groupStatsList = m_stats.get(groupStatsKey);
 
 		assert (groupStatsList != null);
 		assert (!groupStatsList.isEmpty());
 
-		groupStatsList.get(groupStatsList.size() - 1).recordRemoteSiteNetworkLatency(siteId, latency);
+		groupStatsList.get(groupStatsList.size() - 1).recordRemoteSiteNetworkLatency(siteId, latency, isEstimate);
 	}
 
 	/**

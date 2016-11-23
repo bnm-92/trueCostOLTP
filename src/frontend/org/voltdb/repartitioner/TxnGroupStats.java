@@ -45,12 +45,16 @@ public class TxnGroupStats implements Comparable<TxnGroupStats> {
 	}
 
 	public void recordTransactionLatency(int latency) {
+		assert(latency >= 0);
+		
 		m_numTransactions++;
 		m_latencies.add(latency);
 	}
 	
-	public void recordRemoteSiteNetworkLatency(int siteId, int latency)
+	public void recordRemoteSiteNetworkLatency(int siteId, int latency, boolean isEstimate)
 	{
+		assert(latency >= 0);
+		
 		StatsList siteLatencies = m_remoteSiteNetworkLatencies.get(siteId);
 		
 		if(siteLatencies != null)
@@ -59,7 +63,7 @@ public class TxnGroupStats implements Comparable<TxnGroupStats> {
 		}
 		else
 		{
-			siteLatencies = new StatsList();
+			siteLatencies = new StatsList(isEstimate);
 			siteLatencies.add(latency);
 			m_remoteSiteNetworkLatencies.put(siteId, siteLatencies);
 		}
@@ -91,7 +95,7 @@ public class TxnGroupStats implements Comparable<TxnGroupStats> {
 			{
 				StatsList siteLatencies = e.getValue();
 				
-				if(siteLatencies.getMedian() > maxRemoteSiteNetworkLatency)
+				if(!siteLatencies.isEstimates() && siteLatencies.getMedian() > maxRemoteSiteNetworkLatency)
 				{
 					maxRemoteSiteNetworkLatency = siteLatencies.getMedian();
 				}
