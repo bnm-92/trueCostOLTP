@@ -37,7 +37,10 @@ public class ExecutionSiteRunner implements Runnable {
     private final boolean m_replicationActive;
     private final HashSet<Integer> m_failedHostIds;
     private final long m_txnId;
-
+    private boolean wait = false;
+    private int srcSite = -1;
+    
+    
     public ExecutionSiteRunner(
             final int siteId,
             final CatalogContext context,
@@ -54,8 +57,28 @@ public class ExecutionSiteRunner implements Runnable {
         m_txnId = context.m_transactionId;
     }
 
+    
+    public ExecutionSiteRunner(
+            final int siteId,
+            final CatalogContext context,
+            final String serializedCatalog,
+            boolean recovering,
+            boolean replicationActive,
+            HashSet<Integer> failedHostIds,
+            VoltLogger hostLog, boolean wait, int srcSite) {
+        m_siteId = siteId;
+        m_serializedCatalog = serializedCatalog;
+        m_recovering = recovering;
+        m_replicationActive = replicationActive;
+        m_failedHostIds = failedHostIds;
+        m_txnId = context.m_transactionId;
+        this.wait = wait;
+        this.srcSite = srcSite;
+    }
+    
     @Override
     public void run() {
+//    	System.out.println("running execution site runner");
         Mailbox mailbox = VoltDB.instance().getMessenger()
         .createMailbox(m_siteId, VoltDB.DTXN_MAILBOX_ID, true);
 
@@ -69,17 +92,28 @@ public class ExecutionSiteRunner implements Runnable {
                               m_replicationActive,
                               m_failedHostIds,
                               m_txnId);
-        synchronized (this) {
-            m_isSiteCreated = true;
-            this.notifyAll();
-            try {
-                wait();
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
+        
+        if (this.srcSite != -1) {
+        	m_siteObj.sourceSite = this.srcSite; 
+        }
+//        System.out.println("enter synch block");
+        
+        if (!wait) {
+        	synchronized (this) {
+                m_isSiteCreated = true;
+                this.notifyAll();
+                try {
+                    wait();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
             }
         }
+        
+//        System.out.println("enter try");
         try
         {
+//        	System.out.println("starting sites");
             m_siteObj.run();
         }
         catch (OutOfMemoryError e)

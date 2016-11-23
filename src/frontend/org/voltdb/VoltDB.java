@@ -132,6 +132,14 @@ public class VoltDB {
         /** information used to rejoin this new node to a cluster */
         public String m_rejoinToHostAndPort = null;
 
+        // adding this information for StopAndCopy
+        public boolean m_stopandcopy = false;
+        public String m_stopandcopy_srcHost = null;
+        public String m_stopandcopy_srcSite = null;
+        public String m_stopandcopy_destHost = null;
+        public String m_stopandcopy_destSite = null;
+        
+
         /** HTTP port can't be set here, but eventually value will be reflected here */
         public int m_httpPort = Integer.MAX_VALUE;
 
@@ -178,7 +186,7 @@ public class VoltDB {
 
         public Configuration(String args[]) {
             String arg;
-
+//            System.out.println("\n\n CALLING CONFIG WITH ARGS IN VOLTDB \n\n");
             // Arguments are accepted in any order.
             //
             // options:
@@ -186,12 +194,14 @@ public class VoltDB {
 
             for (int i=0; i < args.length; ++i) {
                 arg = args[i];
+//                System.out.println(arg);
                 // Some LocalCluster ProcessBuilder instances can result in an empty string
                 // in the array args.  Ignore them.
                 if (arg.equals(""))
                 {
                     continue;
                 }
+                
                 if (arg.equals("noloadlib")) {
                     m_noLoadLibVOLTDB = true;
                 }
@@ -268,8 +278,22 @@ public class VoltDB {
                     m_rejoinToHostAndPort = args[++i].trim();
                     if (m_rejoinToHostAndPort.compareTo("") == 0)
                         m_rejoinToHostAndPort = null;
-                }
-                else if (arg.startsWith("rejoinhost ")) {
+                } 
+                
+                else if (arg.equals("stopandcopy")) {
+                	this.m_stopandcopy = true;
+                	this.m_stopandcopy_srcHost = args[++i].trim();
+                	this.m_stopandcopy_srcSite = args[++i].trim();
+                	this.m_stopandcopy_destHost = args[++i].trim();
+                	this.m_stopandcopy_destSite = args[++i].trim();
+                	
+                	System.out.println("Starting stop and copy mechanism, received:");
+                	System.out.println("SourceHost :" + this.m_stopandcopy_srcHost);
+                	System.out.println("SourceSite :" + this.m_stopandcopy_srcSite);
+                	System.out.println("destHost :" + this.m_stopandcopy_destHost);
+                	System.out.println("destSite :" + this.m_stopandcopy_destSite);
+                	
+                } else if (arg.startsWith("rejoinhost ")) {
                     m_rejoinToHostAndPort = arg.substring("rejoinhost ".length()).trim();
                     if (m_rejoinToHostAndPort.compareTo("") == 0)
                         m_rejoinToHostAndPort = null;
@@ -337,7 +361,12 @@ public class VoltDB {
          */
         public boolean validate() {
             boolean isValid = true;
-
+            
+            if (this.m_stopandcopy) {
+            	// received valid stop and copy, lets skip other checks
+            	return isValid;
+            }
+            
             if (m_startAction != START_ACTION.START &&
                 m_rejoinToHostAndPort != null &&
                 m_pathToCatalog == null) {

@@ -225,4 +225,8 @@ public interface VoltDBInterface
      * Return the license api. This may be null in community editions!
      */
      public LicenseApi getLicenseApi();
+
+	String doSTCPrepare(int srcHost, int srcSite, int destHost, int destSite, long currentTxnId, String cUpdate);
+
+//	String doSTCPrepare(long currentTxnId, int srcHost, int srcSite, int destHost, int destSite);
 }

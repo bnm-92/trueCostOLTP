@@ -23,6 +23,7 @@ import java.net.InetAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.util.Iterator;
 import java.util.Set;
 
 import org.voltdb.VoltDB;
@@ -74,7 +75,7 @@ public class ForeignHost {
                 if (fault instanceof NodeFailureFault)
                 {
                     NodeFailureFault node_fault = (NodeFailureFault)fault;
-                    if (node_fault.getHostId() == m_hostId) {
+                    if (!node_fault.siteFault && node_fault.getHostId() == m_hostId) {
                         close();
                     }
                 }
@@ -442,14 +443,39 @@ public class ForeignHost {
         // even if it hasn't directly witnessed a node fault.
         if (message instanceof FailureSiteUpdateMessage)
         {
-            int failed_host_id =
-                VoltDB.instance().getCatalogContext().siteTracker.
-                getHostForSite(((FailureSiteUpdateMessage)message).m_failedSiteIds.iterator().next());
-            VoltDB.instance().getFaultDistributor().
-            reportFault(new NodeFailureFault(
-                    failed_host_id,
-                    VoltDB.instance().getCatalogContext().siteTracker.getNonExecSitesForHost(failed_host_id),
-                    m_hostMessenger.getHostnameForHostID(failed_host_id)));
+        	FailureSiteUpdateMessage nff = (FailureSiteUpdateMessage)message;
+        	hostLog.info("got failure site update message");
+//        	if (((FailureSiteUpdateMessage) message).m_failedSiteIds.size() == 1) {
+        		Iterator<Integer> it = ((FailureSiteUpdateMessage) message).m_failedSiteIds.iterator();
+        		while (it.hasNext()) {
+        			int siteId = it.next();
+        			
+        			if (!VoltDB.instance().getCatalogContext().siteTracker.getSiteForId(siteId).getIsexec()) {
+        				int failed_host_id =
+                                VoltDB.instance().getCatalogContext().siteTracker.
+                                getHostForSite(((FailureSiteUpdateMessage)message).m_failedSiteIds.iterator().next());
+                            VoltDB.instance().getFaultDistributor().
+                            reportFault(new NodeFailureFault(
+                                    failed_host_id,
+                                    VoltDB.instance().getCatalogContext().siteTracker.getNonExecSitesForHost(failed_host_id),
+                                    m_hostMessenger.getHostnameForHostID(failed_host_id)));
+                            continue;
+        			}
+        			
+        			if (!VoltDB.instance().getCatalogContext().siteTracker.getAllLiveSites().contains(siteId)) {
+        				continue;
+        			}
+        			
+        			int failed_host_id =
+                            VoltDB.instance().getCatalogContext().siteTracker.
+                            getHostForSite(siteId);
+        			System.out.println("fail fh");
+        			VoltDB.instance().getFaultDistributor().
+                    reportFault(new NodeFailureFault(
+                            failed_host_id,siteId, true));        		
+        		}
+//        	} else {} 
+        	
         }
     }
 }

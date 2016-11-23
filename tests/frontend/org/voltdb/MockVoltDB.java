@@ -634,4 +634,11 @@ public class MockVoltDB implements VoltDBInterface
             }
         };
     }
+
+	@Override
+	public String doSTCPrepare( int srcHost, int srcSite, int destHost,
+			int destSite, long currentTxnId ,String cUpdate) {
+		// TODO Auto-generated method stub
+		return null;
+	}
 }

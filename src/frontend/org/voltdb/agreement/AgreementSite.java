@@ -187,8 +187,16 @@ public class AgreementSite implements org.apache.zookeeper_voltpatches.server.Zo
             for (VoltFault fault : faults) {
                 if (fault instanceof NodeFailureFault) {
                     NodeFailureFault nodeFault = (NodeFailureFault)fault;
-                    faultedNodes.add(nodeFault);
-                    faultedNonExecSites.addAll(nodeFault.getFailedNonExecSites());
+                    if (nodeFault.siteFault) {
+//                    	System.out.println("LOOK AT AGRREEMENT SITES");
+                    	/*if still causing issues, ie youre looking at it then please handle faults here as well*/
+//                    	return;
+                    	faultedNodes.add(nodeFault);
+//                        faultedNonExecSites.addAll(nodeFault.getFailedNonExecSites());
+                    } else {
+                    	faultedNodes.add(nodeFault);
+                        faultedNonExecSites.addAll(nodeFault.getFailedNonExecSites());
+                    }
                 }
             }
             if (!faultedNodes.isEmpty()) {
@@ -206,8 +214,10 @@ public class AgreementSite implements org.apache.zookeeper_voltpatches.server.Zo
                     for (VoltFault fault : copy) {
                         if (fault instanceof NodeFailureFault) {
                             NodeFailureFault nff = (NodeFailureFault)fault;
-                            for (Integer site : nff.getFailedNonExecSites()) {
-                                processRejoin(site);
+                            if (!((NodeFailureFault) fault).siteFault) {
+                            	for (Integer site : nff.getFailedNonExecSites()) {
+                                    processRejoin(site);
+                                }
                             }
                         }
                     }
@@ -544,9 +554,11 @@ public class AgreementSite implements org.apache.zookeeper_voltpatches.server.Zo
             FaultMessage fm = (FaultMessage)message;
 
             for (NodeFailureFault fault : fm.nodeFaults){
-                for (Integer faultedInitiator : fault.getFailedNonExecSites()) {
-                    m_safetyState.removeState(faultedInitiator);
-                }
+            	if (!fault.siteFault) {
+            		for (Integer faultedInitiator : fault.getFailedNonExecSites()) {
+                		m_safetyState.removeState(faultedInitiator);
+            		}
+            	}
             }
             discoverGlobalFaultData(fm);
         } else if (message instanceof RecoveryMessage) {
@@ -617,7 +629,15 @@ public class AgreementSite implements org.apache.zookeeper_voltpatches.server.Zo
             VoltDB.crashLocalVoltDB("Aborting recovery due to a remote node failure. Retry again.", true, null);
         }
         Set<NodeFailureFault> failures = faultMessage.nodeFaults;
-
+        
+        for (NodeFailureFault f: failures) {
+        	if (f.siteFault) {
+        		m_faultDistributor.
+                reportFaultHandled(m_faultHandler, f);
+        		failures.remove(f);
+        	}
+        }
+        
         Set<Integer> failedSiteIds = getFaultingSites(faultMessage);
         m_knownFailedSites.addAll(failedSiteIds);
         m_siteIds.removeAll(m_knownFailedSites);

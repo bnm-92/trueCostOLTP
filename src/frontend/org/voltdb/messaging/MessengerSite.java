@@ -32,7 +32,9 @@ class MessengerSite {
 
     public synchronized Mailbox createMailbox(int mailboxId, boolean log) {
         SiteMailbox mbox = (SiteMailbox)getMailbox(mailboxId);
-        if (mbox != null) return null;
+        if (mbox != null) {
+        	m_mailboxes.remove(mbox);
+        } // please check this later
 
         SiteMailbox newMbox = new SiteMailbox(m_hostMessenger, m_siteId, mailboxId, log);
         m_mailboxes.put(mailboxId, newMbox);

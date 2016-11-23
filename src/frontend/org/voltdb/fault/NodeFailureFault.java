@@ -26,6 +26,19 @@ public class NodeFailureFault extends VoltFault
     public static int NODE_FAILURE_INITIATOR = 2;
     public static int NODE_FAILURE_EXECUTION_SITE = 3;
 
+    public boolean siteFault = false;
+    public int siteId;
+    
+    public NodeFailureFault(int hostId, int siteId, boolean siteFault)
+    {
+        super(FaultType.NODE_FAILURE);
+        m_hostId = hostId;
+//        m_hostname = hostname;
+//        m_failedNonExecSites = failedNonExecSites;
+        this.siteId = siteId;
+        this.siteFault = siteFault;
+    }
+    
     public NodeFailureFault(int hostId, Set<Integer> failedNonExecSites, String hostname)
     {
         super(FaultType.NODE_FAILURE);

@@ -67,12 +67,21 @@ class VoltDBNodeFailureFaultHandler implements FaultHandler {
     }
 
     private void handleNodeFailureFault(NodeFailureFault node_fault) {
-        ArrayList<Integer> dead_sites =
-            VoltDB.instance().getCatalogContext().
-            siteTracker.getAllSitesForHost(node_fault.getHostId());
+        
+    	ArrayList<Integer> dead_sites = null;
+    	if (node_fault.siteFault) {
+    		dead_sites = new ArrayList<Integer>();
+    		dead_sites.add(node_fault.siteId);
+    	} else {
+    		dead_sites =
+    	            VoltDB.instance().getCatalogContext().
+    	            siteTracker.getAllSitesForHost(node_fault.getHostId());
+    	}
+    	
         Collections.sort(dead_sites);
-        hostLog.error("Host failed, host id: " + node_fault.getHostId() +
-                " hostname: " + node_fault.getHostname());
+        if (!node_fault.siteFault)
+        	hostLog.error("Host failed, host id: " + node_fault.getHostId() +
+        			" hostname: " + node_fault.getHostname());
         hostLog.error("  Removing sites from cluster: " + dead_sites);
         StringBuilder sb = new StringBuilder();
         for (int site_id : dead_sites)

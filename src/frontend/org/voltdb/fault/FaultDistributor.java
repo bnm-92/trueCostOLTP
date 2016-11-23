@@ -263,7 +263,27 @@ public class FaultDistributor implements FaultDistributorInterface, Runnable
      */
     private boolean isKnownFault(VoltFault fault) {
         assert (Thread.currentThread() == m_thread);
-        return !m_knownFaults.get(fault.getFaultType()).add(fault);
+        boolean check = ((NodeFailureFault)fault).siteFault;
+        if (check) {
+        	int siteId = ((NodeFailureFault)fault).siteId;
+        	SiteTracker st = VoltDB.instance().getCatalogContext().siteTracker;
+        	if (st.getAllLiveSites().contains(siteId)) {
+        		m_knownFaults.get(fault.getFaultType()).add(fault);
+        		return false;
+        	}
+        	return true;
+        }
+        
+       int hostId = ((NodeFailureFault)fault).getHostId();
+       SiteTracker st = VoltDB.instance().getCatalogContext().siteTracker;
+       
+       if (st.getAllLiveHosts().contains(hostId)) {
+    	   return false;
+       }
+       
+       
+        
+        return (!m_knownFaults.get(fault.getFaultType()).add(fault));
     }
 
     /*
@@ -306,6 +326,7 @@ public class FaultDistributor implements FaultDistributorInterface, Runnable
                 for (FaultHandlerData handlerData : handler_list)
                 {
                     if (handlerData.m_handlersPendingFaults.addAll(entry.getValue())) {
+                    	hostLog.info("handling fault at: " + handlerData.m_handler.toString());
                         handlerData.m_handler.faultOccured(handlerData.m_handlersPendingFaults);
                     }
                 }
@@ -329,7 +350,7 @@ public class FaultDistributor implements FaultDistributorInterface, Runnable
         while (!pendingFaults.isEmpty()) {
             VoltFault fault = pendingFaults.poll();
             if (isKnownFault(fault)) {
-                hostLog.debug("Fault is being dropped because it is already known " + fault);
+                hostLog.info("Fault is being dropped because it is already known " + fault);
                 continue;
             }
             HashSet<VoltFault> faults = faultsMap.get(fault.getFaultType());
@@ -375,6 +396,8 @@ public class FaultDistributor implements FaultDistributorInterface, Runnable
             {
                 for (FaultHandlerData handlerData : handler_list)
                 {
+                	hostLog.info("clearing fault at: " + handlerData.m_handler.toString());
+
                     handlerData.m_handler.faultCleared(entry.getValue());
                 }
             }
