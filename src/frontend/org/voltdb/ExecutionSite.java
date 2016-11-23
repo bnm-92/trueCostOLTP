@@ -23,6 +23,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -106,6 +107,10 @@ implements Runnable, SiteTransactionConnection, SiteProcedureConnection
 {
     
 	public int sourceSite = -1;
+	
+	//stats collector, will map txn to time taken, in System.nano time
+	public HashMap<Long, ArrayList<Long> > time;
+	
 	private VoltLogger m_txnlog;
     private final VoltLogger m_recoveryLog = new VoltLogger("RECOVERY");
     private static final VoltLogger log = new VoltLogger("EXEC");
@@ -142,6 +147,7 @@ implements Runnable, SiteTransactionConnection, SiteProcedureConnection
     // Catalog
     public CatalogContext m_context;
     Site getCatalogSite() {
+//    	System.na
         return m_context.cluster.getSites().get(Integer.toString(getSiteId()));
     }
 
@@ -1309,6 +1315,11 @@ implements Runnable, SiteTransactionConnection, SiteProcedureConnection
                 return;
             }
             else if (info instanceof InitiateTaskMessage) {
+            	Long txn = info.getTxnId();
+            	Long sTime = System.nanoTime();
+            	ArrayList<Long> times = new ArrayList<Long>();
+            	times.add(sTime);
+            	this.time.put(txn, times);
                 m_transactionQueue.noteTransactionRecievedAndReturnLastSeen(info.getInitiatorSiteId(),
                                                   info.getTxnId(),
                                                   false,

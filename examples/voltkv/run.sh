@@ -7,6 +7,7 @@ VOLTCOMPILER="../../bin/voltcompiler"
 LOG4J="`pwd`/../../voltdb/log4j.xml"
 LICENSE="../../voltdb/license.xml"
 LEADER="localhost"
+HOST="localhost"
 
 # remove build artifacts
 function clean() {
@@ -40,6 +41,23 @@ function server() {
         license $LICENSE leader $LEADER
 }
 
+function call-fail-site() {
+    srccompile
+    java -classpath obj:$CLASSPATH:obj -Dlog4j.configuration=file://$LOG4J \
+        voltkv.CustomClient \
+        ${args[1]} \
+        ${args[2]} \
+        ${args[3]}
+}
+
+function rejoin_12() {
+	$VOLTDB rejoinhost blue13 deployment deployment.xml
+}
+
+function rejoin_13() {
+ $VOLTDB rejoinhost blue12 catalog $APPNAME.jar deployment deployment.xml
+}
+
 # run the client that drives the example
 function client() {
     async-benchmark
@@ -56,7 +74,7 @@ function async-benchmark() {
     srccompile
     java -classpath obj:$CLASSPATH:obj -Dlog4j.configuration=file://$LOG4J \
         voltkv.AsyncBenchmark \
-        --displayinterval=5 \
+        --displayinterval=1 \
         --duration=120 \
         --servers=localhost \
         --poolsize=100000 \
@@ -87,7 +105,7 @@ function sync-benchmark() {
         --duration=120 \
         --servers=localhost \
         --poolsize=100000 \
-        --preload=true \
+        --preload=false \
         --getputratio=0.90 \
         --keysize=32 \
         --minvaluesize=1024 \
@@ -107,7 +125,7 @@ function jdbc-benchmark() {
     srccompile
     java -classpath obj:$CLASSPATH:obj -Dlog4j.configuration=file://$LOG4J \
         voltkv.JDBCBenchmark \
-        --displayinterval=5 \
+        --displayinterval=1 \
         --duration=120 \
         --servers=localhost:21212 \
         --poolsize=100000 \
@@ -127,5 +145,9 @@ function help() {
 
 # Run the target passed as the first arg on the command line
 # If no first arg, run server
-if [ $# -gt 1 ]; then help; exit; fi
+if [ $# > 1 ]; then
+   args=("$@");
+    $1; exit; fi
 if [ $# = 1 ]; then $1; else server; fi
+
+
