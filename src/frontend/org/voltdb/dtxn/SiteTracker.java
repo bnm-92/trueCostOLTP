@@ -556,6 +556,9 @@ public class SiteTracker {
     public Integer getLowestLiveExecSiteIdForHost(int hostId)
     {
         ArrayList<Integer> sites = getLiveExecutionSitesForHost(hostId);
+        if (sites.size() == 0) {
+        	return -1;
+        }
         return Collections.min(sites);
     }
 

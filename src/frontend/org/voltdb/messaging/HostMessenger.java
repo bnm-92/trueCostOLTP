@@ -319,6 +319,9 @@ public class HostMessenger implements Messenger {
     @Override
     public Mailbox createMailbox(int siteId, int mailboxId, boolean log) {
         assert(m_initialized);
+//        System.out.println("at mail box");
+//        System.out.println(siteId);
+//        System.out.println(mailboxId);
         int localSiteId = siteId % VoltDB.SITES_TO_HOST_DIVISOR;
         MessengerSite site = m_messengerSites[localSiteId];
         if (site == null) return null;

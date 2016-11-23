@@ -95,6 +95,22 @@ import org.voltdb.utils.Pair;
  *
  */
 public class ClientInterface implements SnapshotDaemon.DaemonInitiator {
+	
+    public class stats {
+    	public long txnId;
+    	public String storedProcedure;
+    	public int hostId;
+    	public ArrayList<Integer> partitions;
+    	public Long initTime;
+    	public Long endTime;
+    	
+    	public stats () {
+    		
+    	}
+    }
+    
+    public ArrayList<stats> stats = new ArrayList<stats>();
+	
 
     // reasons a connection can fail
     public static final byte AUTHENTICATION_FAILURE = -1;
@@ -798,6 +814,18 @@ public class ClientInterface implements SnapshotDaemon.DaemonInitiator {
             final int messageSize,
             final long now)
     {
+        stats st = new stats();
+//        st.txnId = txnId;
+        st.storedProcedure = invocation.toString();
+        st.partitions = new ArrayList<Integer>();
+        st.initTime = System.nanoTime();
+        st.endTime = null;
+        
+        for (int i=0; i<partitions.length; i++)
+        	st.partitions.add(partitions[i]);
+        
+        stats.add(st);
+    	
         return m_initiator.createTransaction(
                 connectionId,
                 connectionHostname,

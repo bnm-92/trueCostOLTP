@@ -103,7 +103,7 @@ public class SystemProcedureCatalog {
 
     public static final HashMap<String, Config> listing =
         new HashMap<String, Config>();
-
+//															class name								rdonly evsite commer TerRep skipRe AlRep  
     static {
         listing.put("@AdHoc",                   new Config("org.voltdb.sysprocs.AdHoc",             false, false, false, false, false, true));
         listing.put("@AdHocSP",                 new Config("org.voltdb.sysprocs.AdHocSP",           false, false, false, false, false, true));
@@ -111,6 +111,9 @@ public class SystemProcedureCatalog {
         listing.put("@Resume",                  new Config("org.voltdb.sysprocs.Resume",            false, true,  false, false, true, true));
         listing.put("@Quiesce",                 new Config("org.voltdb.sysprocs.Quiesce",           false, false, false, false, true, true));
         listing.put("@Rejoin",                  new Config("org.voltdb.sysprocs.Rejoin",            false, false, false, false, true, true));
+        listing.put("@StopAndCopy",             new Config("org.voltdb.sysprocs.StopAndCopy",       false, false, false, false, true, true));
+        listing.put("@FailSite",                new Config("org.voltdb.sysprocs.FailSite",          false, false, false, false, false, true));
+        listing.put("@STCRepartition",          new Config("org.voltdb.sysprocs.FailSite",          false, false, false, false, false, true));
         listing.put("@SnapshotSave",            new Config("org.voltdb.sysprocs.SnapshotSave",      false, false, false, false, true, true));
         listing.put("@SnapshotRestore",         new Config("org.voltdb.sysprocs.SnapshotRestore",   false, false, false, true, true, false));
         listing.put("@SnapshotStatus",          new Config("org.voltdb.sysprocs.SnapshotStatus",    false, false, false, false, true, true));

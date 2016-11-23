@@ -134,6 +134,14 @@ public class SysProcFragmentId
     public static final long PF_rejoinCommit = 172;
     public static final long PF_rejoinRollback = 173;
     public static final long PF_rejoinAggregate = 174;
+    
+    // @StopAndCopy
+    public static final long PF_stcBlock = 175;
+    public static final long PF_stcDeclare = 176;
+    public static final long PF_stcCommit = 177;
+    public static final long PF_stcRollback = 178;
+    public static final long PF_stcAggregate = 179;
+    
 
     // @SystemInformation
     public static final long PF_systemInformationDeployment = 190;

@@ -70,7 +70,11 @@ public class SimpleDtxnInitiator extends TransactionInitiator {
     private final ExecutorTxnIdSafetyState m_safetyState;
     private static final VoltLogger hostLog = new VoltLogger("HOST");
     private static final VoltLogger consoleLog = new VoltLogger("CONSOLE");
+    
 
+    
+
+    
     private ClientInterface m_clientInterface;
     public void setClientInterface(ClientInterface ci) {
         m_clientInterface = ci;
@@ -99,8 +103,9 @@ public class SimpleDtxnInitiator extends TransactionInitiator {
     private final DtxnInitiatorMailbox m_mailbox;
     private final int m_siteId;
     private final int m_hostId;
-    private long m_lastSeenOriginalTxnId = Long.MIN_VALUE;
-
+    private long m_lastSeenOriginalTxnId = Long.MIN_VALUE;    
+    
+    
     public SimpleDtxnInitiator(CatalogContext context,
                                Messenger messenger, int hostId, int siteId,
                                int initiatorId,
@@ -113,6 +118,7 @@ public class SimpleDtxnInitiator extends TransactionInitiator {
         m_hostId = hostId;
         m_siteId = siteId;
         m_safetyState = new ExecutorTxnIdSafetyState(siteId, context.siteTracker);
+        
         m_mailbox =
             new DtxnInitiatorMailbox(
                     siteId,
@@ -140,6 +146,9 @@ public class SimpleDtxnInitiator extends TransactionInitiator {
     {
         long txnId;
         txnId = m_idManager.getNextUniqueTransactionId();
+        
+
+        
         boolean retval =
             createTransaction(connectionId, connectionHostname, adminConnection, txnId,
                               invocation, isReadOnly, isSinglePartition, isEveryPartition,
@@ -293,7 +302,8 @@ public class SimpleDtxnInitiator extends TransactionInitiator {
                 // tack on the last confirmed seen txn id for all sites with a particular partition
                 long newestSafeTxnId = m_safetyState.getNewestSafeTxnIdForExecutorBySiteId(siteId);
                 HeartbeatMessage tickNotice = new HeartbeatMessage(m_siteId, txnId, newestSafeTxnId);
-                m_mailbox.send(siteId, VoltDB.DTXN_MAILBOX_ID, tickNotice);
+                if (VoltDB.instance().getCatalogContext().siteTracker.getSiteForId(m_siteId).getIsup())
+                	m_mailbox.send(siteId, VoltDB.DTXN_MAILBOX_ID, tickNotice);
             }
         } catch (MessagingException e) {
             throw new RuntimeException(e);

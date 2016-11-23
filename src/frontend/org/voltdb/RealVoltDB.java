@@ -173,8 +173,8 @@ public class RealVoltDB implements VoltDBInterface, RestoreAgent.Callback
     VoltNetwork m_network = null;
     AgreementSite m_agreementSite;
     HTTPAdminListener m_adminListener;
-    private Map<Integer, Thread> m_siteThreads;
-    private ArrayList<ExecutionSiteRunner> m_runners;
+    public Map<Integer, Thread> m_siteThreads;
+    public ArrayList<ExecutionSiteRunner> m_runners;
     private ExecutionSite m_currentThreadSite;
     private StatsAgent m_statsAgent = new StatsAgent();
     private AsyncCompilerAgent m_asyncCompilerAgent = new AsyncCompilerAgent();
@@ -274,7 +274,8 @@ public class RealVoltDB implements VoltDBInterface, RestoreAgent.Callback
      * Initialize all the global components, then initialize all the m_sites.
      */
     @Override
-    public void initialize(VoltDB.Configuration config) {
+    public void initialize(VoltDB.Configuration config) 
+    {
         // set the mode first thing
         m_mode = OperationMode.INITIALIZING;
 
@@ -368,6 +369,7 @@ public class RealVoltDB implements VoltDBInterface, RestoreAgent.Callback
                 poolSize = 2;
             }
             m_periodicWorkThread = MiscUtils.getScheduledThreadPoolExecutor("Periodic Work", poolSize, 1024 * 128);
+            
             buildClusterMesh(isRejoin);
 
             m_licenseApi = MiscUtils.licenseApiFactory(m_config.m_pathToLicense);
@@ -485,7 +487,7 @@ public class RealVoltDB implements VoltDBInterface, RestoreAgent.Callback
 
 
                 // create DTXN and CI for each local non-EE site
-                if ((sitesHostId == m_myHostId) && (site.getIsexec() == false)) {
+                if ((sitesHostId == m_myHostId) && (site.getIsexec() == false) && (site.getIsup() == true)) {
                     SimpleDtxnInitiator initiator =
                         new SimpleDtxnInitiator(
                                 m_catalogContext,
@@ -935,6 +937,8 @@ public class RealVoltDB implements VoltDBInterface, RestoreAgent.Callback
 
         };
         try {
+        	System.out.println("rejoin Host is: " + rejoinHost);
+        	System.out.println(rejoinPort);
             client.createConnection(rejoinHost, rejoinPort);
             InetSocketAddress inetsockaddr = new InetSocketAddress(rejoinHost, rejoinPort);
             SocketChannel socket = SocketChannel.open(inetsockaddr);
@@ -1178,6 +1182,14 @@ public class RealVoltDB implements VoltDBInterface, RestoreAgent.Callback
      */
     @Override
     public void run() {
+    	
+//    	System.out.print(this.getConfig().m_stopandcopy);
+    	
+    	if (this.getConfig().m_stopandcopy) {
+    		System.out.println("in run, returning without any work");
+    		return;
+    	}
+    	
         // start the separate EE threads
         for (ExecutionSiteRunner r : m_runners) {
             synchronized (r) {
@@ -1338,6 +1350,97 @@ public class RealVoltDB implements VoltDBInterface, RestoreAgent.Callback
         }
     }
 
+    /** Last transaction ID at which the rejoin commit took place.
+     * Also, use the intrinsic lock to safeguard access from multiple
+     * execution site threads */
+    private static Long lastNodeSTCPrepare_txnId = 0L;
+    public synchronized String doSTCPrepare(
+    		int srcHost, int srcSite, int destHost, int destSite,
+            long currentTxnId, 
+            String cUpdate)
+    {
+        // another site already did this work.
+        if (currentTxnId == lastNodeSTCPrepare_txnId) {
+            return null;
+        }
+        else if (currentTxnId < lastNodeSTCPrepare_txnId) {
+            throw new RuntimeException("Trying to STC (prepare) with an old transaction.");
+        }
+        
+        if (m_recovering) {
+        	VoltDB.crashLocalVoltDB("rejoins and stc or concurrent stc cannot take place together", false, null);
+        }
+        lastNodeSTCPrepare_txnId = currentTxnId;
+//        System.out.println(VoltDB.instance().getHostMessenger().getHostId());
+        HostMessenger messenger = getHostMessenger();
+        
+        VoltDB.instance().getFaultDistributor().reportFaultCleared(
+           		new NodeFailureFault(destHost, destSite, true));
+        
+        try {
+            m_faultHandler.m_waitForFaultClear.acquire();
+        } catch (InterruptedException e) {
+            VoltDB.crashLocalVoltDB(e.getMessage(), true, e);//shouldn't happen
+        }
+//        System.out.println("updating cluster state");
+        clusterUpdate(cUpdate);
+        
+        // if this is the dest host then recreate the destSite to recovering
+        
+//        System.out.println(this.getHostMessenger().getHostId());
+        if (this.getHostMessenger().getHostId() == destHost) {
+
+        	
+        	VoltDB.instance().getConfig().m_selectedRejoinInterface = null;
+//        	System.out.println("at destination host, creating new execution runners");
+        	this.m_localSites.remove(destSite);
+        	this.m_siteThreads.remove(destSite);
+        	int index = -1;
+        	ExecutionSiteRunner runner = null;
+        	for (int i=0; i<this.m_runners.size(); i++) {
+        		if (this.m_runners.get(i).m_siteId == destSite)
+        			index = i;
+        	}
+//        	runner = m_runners.get(index);
+        	runner = new ExecutionSiteRunner(destSite, 
+						        			m_catalogContext,
+						                    m_serializedCatalog,
+						                    true,
+						                    m_replicationActive,
+						                    m_downHosts,
+						                    hostLog, 
+						                    true,
+						                    srcSite);
+        	this.m_runners.add(runner);
+        	this.m_localSites.put(destSite, runner.m_siteObj);
+        	Thread runnerThread = new Thread(runner, "Site " + destSite);
+        	m_siteThreads.put(destSite, runnerThread);
+        	if (index != -1)
+        		m_runners.remove(index);
+        	m_runners.add(runner);
+        	
+        	runnerThread.start();
+
+        	
+        }
+        
+        
+        // update the SafteyState in the initiators
+        ArrayList<Integer> temp = new ArrayList<Integer>();
+        temp.add(destSite);
+        for (SimpleDtxnInitiator dtxn : m_dtxns) {
+            dtxn.notifyExecutionSiteRejoin(temp);
+        }    
+
+        //Notify the export manager the cluster topology has changed
+        ExportManager.instance().notifyOfClusterTopologyChange();
+
+        return null;
+    }    
+
+    
+    
+    
     /** Last transaction ID at which the rejoin commit took place.
      * Also, use the intrinsic lock to safeguard access from multiple
      * execution site threads */

@@ -785,6 +785,7 @@ public class RecoverySiteProcessorSource extends RecoverySiteProcessor {
 
         RecoverySiteProcessorSource source = null;
         try {
+        	recoveryLog.info("creating connection with: " + new String(rm.address()));
             SocketChannel sc = createRecoveryConnection(rm.address(), rm.port());
 
             final long destinationTxnId = rm.txnId();

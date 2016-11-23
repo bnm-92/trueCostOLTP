@@ -20,10 +20,12 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.NetworkInterface;
 import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -33,6 +35,7 @@ import java.util.concurrent.Semaphore;
 
 import org.voltdb.catalog.Database;
 import org.voltdb.catalog.Table;
+import org.voltdb.client.ConnectionUtil;
 import org.voltdb.dtxn.SiteTracker;
 import org.voltdb.jni.ExecutionEngine;
 import org.voltdb.logging.VoltLogger;
@@ -263,6 +266,7 @@ public class RecoverySiteProcessorDestination extends RecoverySiteProcessor {
                 m_engine.toggleProfiler(1);
             }
             m_bytesReceived += message.remaining();
+//            System.out.println("bytes received "+m_bytesReceived);
             long startTime = System.currentTimeMillis();
             message.position(messageTypeOffset);
             m_engine.processRecoveryMessage( message, pointer);
@@ -466,14 +470,66 @@ public class RecoverySiteProcessorDestination extends RecoverySiteProcessor {
     public void sendInitiateMessage(long txnId) throws IOException {
         ServerSocketChannel ssc = ServerSocketChannel.open();
         ssc.configureBlocking(false);
-        InetAddress addr = InetAddress.getByName(VoltDB.instance().getConfig().m_selectedRejoinInterface);
+        
+//        System.out.println(VoltDB.instance().getConfig().m_selectedRejoinInterface);
+        InetAddress addr = null;
+        
+        if (VoltDB.instance().getConfig().m_selectedRejoinInterface == null) {
+//        	System.out.println("interface was null");
+//        	VoltDB.instance().getConfig().m_selectedRejoinInterface = "10.0.3.12";
+//        	System.out.println(ConnectionUtil.getLocalAddress());
+        	
+            Enumeration<NetworkInterface> n = NetworkInterface.getNetworkInterfaces();
+            for (; n.hasMoreElements();)
+            {
+                    NetworkInterface e = n.nextElement();
+                    if (!e.getName().equals("p4p1")) {
+                    	continue;
+                    }
+//                    System.out.println("Interface: " + e.getName());
+                    Enumeration<InetAddress> a = e.getInetAddresses();
+                    
+                    for (; a.hasMoreElements();)
+                    {
+                            addr = a.nextElement();
+//                            System.out.println("  " + addr.getHostAddress());
+                    }
+            }
+        	
+        }
+        
+        
+        
+        
+        
+//        if (VoltDB.instance().getConfig().m_selectedRejoinInterface == null) {
+        	
+        if (addr == null)
+        	addr = InetAddress.getByName(VoltDB.instance().getConfig().m_selectedRejoinInterface);
+//        } else {
+//        	System.out.println("was in else for source processor");
+//        	InetSocketAddress inetsockaddr = new InetSocketAddress(VoltDB.instance().getHostMessenger().getHostname(), 12345);
+//            SocketChannel socket = SocketChannel.open(inetsockaddr);
+//            String ip_addr = socket.socket().getLocalAddress().getHostAddress();
+//            socket.close();
+//        	addr = InetAddress.getByName(ip_addr);
+//        }
+        
+//        System.out.println(addr);
+        
+//        InetAddress addr = InetAddress.getByName("blue12");
         InetSocketAddress sockAddr = new InetSocketAddress( addr, 0);
         ssc.socket().bind(sockAddr);
         final int port = ssc.socket().getLocalPort();
         final byte address[] = ssc.socket().getInetAddress().getAddress();
         ByteBuffer buf = ByteBuffer.allocate(2048);
         BBContainer container = DBBPool.wrapBB(buf);
+        
+//        System.out.println("sending recovery message with host" + new String(address));
+        
         RecoveryMessage recoveryMessage = new RecoveryMessage(container, m_siteId, txnId, address, port);
+        
+        
         recoveryLog.trace(
                 "Sending recovery initiate request before txnid " + txnId +
                 " from site " + m_siteId + " to " + m_sourceSiteId);
@@ -484,7 +540,7 @@ public class RecoverySiteProcessorDestination extends RecoverySiteProcessor {
         }
 
         final long startTime = System.currentTimeMillis();
-        while (System.currentTimeMillis() - startTime < 5000) {
+        while (System.currentTimeMillis() - startTime < 500000) {
             try {
                 m_sc = ssc.accept();
                 if (m_sc != null) {
