@@ -112,9 +112,9 @@ public class PartitioningGenerator {
 		m_maxPartitionsPerHost = maxPartitionsPerHost;
 		assert (m_numHosts * m_maxPartitionsPerHost >= m_numPartitions);
 
-		assert (hostToSiteIds != null);
-		assert (hostToSiteIds.size() == m_numHosts);
-		m_hostIdToSiteIds = hostToSiteIds;
+		//assert (hostToSiteIds != null);
+		//assert (hostToSiteIds.size() == m_numHosts);
+		//m_hostIdToSiteIds = hostToSiteIds;
 
 		createPartitionAssignmentVars();
 	}
@@ -177,7 +177,7 @@ public class PartitioningGenerator {
 					* groupStats.getMedianRemotePartitionNetworkLatency(groupStats.getPartition());
 
 			constraintLHS.add(1, latencyVariable);
-			constraintLHS.add(totalRemoteLatency, m_partitionAssignmentVariables[partitionIndex][hostIndex]);
+			constraintLHS.add(totalRemoteLatency, m_partitionAssignmentVariables[partitionIndex-1][hostIndex-1]);
 
 			m_ilp.add(constraintLHS, Operator.EQ, totalLocalLatency + totalRemoteLatency);
 		}
@@ -208,7 +208,7 @@ public class PartitioningGenerator {
 
 					constraintLHS = new Linear();
 
-					constraintLHS.add(totalRemoteLatency, m_partitionAssignmentVariables[partitionIndex][hostIndex]);
+					constraintLHS.add(totalRemoteLatency, m_partitionAssignmentVariables[partitionIndex-1][hostIndex-1]);
 					constraintLHS.add(1, maxVariable);
 
 					m_ilp.add(constraintLHS, Operator.GE, totalRemoteLatency);

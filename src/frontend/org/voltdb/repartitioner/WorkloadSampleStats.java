@@ -121,7 +121,7 @@ public class WorkloadSampleStats {
 		if (groupStats != null && groupStats.getNumTransactions() < MAX_TRANSACTIONS_PER_GROUP) {
 			groupStats.recordTransactionLatency(latency);
 		} else {
-			groupStats = new TxnGroupStats(groupStatsKey);
+			groupStats = new TxnGroupStats(groupStatsKey.clone());
 			groupStats.recordTransactionLatency(latency);
 			groupStatsList.add(groupStats);
 
