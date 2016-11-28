@@ -193,11 +193,15 @@ public class TxnScheduleGraph {
 			++j;
 		}
 		
-		while(i < numSPTxns)
+		if(i < numSPTxns)
 		{
 			graph.m_nodeChain.addNode(new ConcurrentNode());
-			((ConcurrentNode) graph.m_nodeChain.getTailNode()).addNode(new SerialNode(sample.getSinglePartitionTxnStats().get(i)));
-			++i;
+			
+			while(i < numSPTxns)
+			{
+				((ConcurrentNode) graph.m_nodeChain.getTailNode()).addNode(new SerialNode(sample.getSinglePartitionTxnStats().get(i)));
+				++i;
+			}
 		}
 		
 		while(j < numMPTxns)

@@ -86,8 +86,7 @@ public class PartitioningGenerator {
 	 */
 	private StringBuilder m_varNameBuilder = new StringBuilder();
 
-	public PartitioningGenerator(int[] allHostIds, int[] allPartitionIds,
-			Map<Integer, ArrayList<Integer>> hostToSiteIds, int maxPartitionsPerHost) {
+	public PartitioningGenerator(int[] allHostIds, int[] allPartitionIds, int maxPartitionsPerHost) {
 		m_solverFactory = new SolverFactoryGLPK();
 
 		assert (allHostIds != null);
@@ -120,6 +119,7 @@ public class PartitioningGenerator {
 	}
 
 	public Map<Integer, ArrayList<Integer>> findOptimumPartitioning(WorkloadSampleStats sample) {
+		Integer constraintNum = 1;
 		int latencyVariableIndex = 1;
 		int maxVariableIndex = 1;
 		Linear constraintLHS = null;
@@ -143,7 +143,8 @@ public class PartitioningGenerator {
 				constraintLHS.add(1, m_partitionAssignmentVariables[i][j]);
 			}
 
-			m_ilp.add(constraintLHS, Operator.EQ, 1);
+			m_ilp.add(constraintNum.toString(), constraintLHS, Operator.EQ, 1);
+			constraintNum++;
 		}
 
 		// Add constraints so that each host has less than equal to the maximum
@@ -155,8 +156,10 @@ public class PartitioningGenerator {
 				constraintLHS.add(1, m_partitionAssignmentVariables[i][j]);
 			}
 
-			m_ilp.add(constraintLHS, Operator.GE, 0);
-			m_ilp.add(constraintLHS, Operator.LE, m_maxPartitionsPerHost);
+			m_ilp.add(constraintNum.toString(), constraintLHS, Operator.GE, 0);
+			constraintNum++;
+			m_ilp.add(constraintNum.toString(), constraintLHS, Operator.LE, m_maxPartitionsPerHost);
+			constraintNum++;
 		}
 
 		// Add constraints for single partition transactions
@@ -179,7 +182,8 @@ public class PartitioningGenerator {
 			constraintLHS.add(1, latencyVariable);
 			constraintLHS.add(totalRemoteLatency, m_partitionAssignmentVariables[partitionIndex-1][hostIndex-1]);
 
-			m_ilp.add(constraintLHS, Operator.EQ, totalLocalLatency + totalRemoteLatency);
+			m_ilp.add(constraintNum.toString(), constraintLHS, Operator.EQ, totalLocalLatency + totalRemoteLatency);
+			constraintNum++;
 		}
 
 		// Add constraints for multi partition transactions
@@ -195,7 +199,6 @@ public class PartitioningGenerator {
 			// Introduce a new maximum variable
 			m_ilp.setVarType(maxVariable, VarType.REAL);
 			m_ilp.setVarLowerBound(maxVariable, 0);
-			groupStats.setLatencyVariable(maxVariable);
 
 			// Add constraints to determine the maximum of all remote partition
 			// latencies
@@ -211,7 +214,8 @@ public class PartitioningGenerator {
 					constraintLHS.add(totalRemoteLatency, m_partitionAssignmentVariables[partitionIndex-1][hostIndex-1]);
 					constraintLHS.add(1, maxVariable);
 
-					m_ilp.add(constraintLHS, Operator.GE, totalRemoteLatency);
+					m_ilp.add(constraintNum.toString(), constraintLHS, Operator.GE, totalRemoteLatency);
+					constraintNum++;
 				}
 			}
 
@@ -222,7 +226,8 @@ public class PartitioningGenerator {
 			constraintLHS.add(1, latencyVariable);
 			constraintLHS.add(-1, maxVariable);
 
-			m_ilp.add(constraintLHS, Operator.EQ, totalLocalLatency);
+			m_ilp.add(constraintNum.toString(), constraintLHS, Operator.EQ, totalLocalLatency);
+			constraintNum++;
 		}
 
 		// Add constraints to determine the execution time of the best schedule
@@ -254,7 +259,8 @@ public class PartitioningGenerator {
 					}
 
 					maxConstraintLHS.add(-1, maxVariable);
-					m_ilp.add(maxConstraintLHS, Operator.LE, 0);
+					m_ilp.add(constraintNum.toString(), maxConstraintLHS, Operator.LE, 0);
+					constraintNum++;
 				}
 
 				constraintLHS.add(1, maxVariable);
@@ -264,7 +270,8 @@ public class PartitioningGenerator {
 		}
 
 		constraintLHS.add(-1, "best");
-		m_ilp.add(constraintLHS, Operator.EQ, 0);
+		m_ilp.add(constraintNum.toString(), constraintLHS, Operator.EQ, 0);
+		constraintNum++;
 
 		// Add constraints to determine the execution time of the worst schedule
 		TxnScheduleGraph worstSchedule = TxnScheduleGraph.getWorstCaseSchedule(sample);
@@ -294,7 +301,8 @@ public class PartitioningGenerator {
 					}
 
 					maxConstraintLHS.add(-1, maxVariable);
-					m_ilp.add(maxConstraintLHS, Operator.LE, 0);
+					m_ilp.add(constraintNum.toString(), maxConstraintLHS, Operator.LE, 0);
+					constraintNum++;
 				}
 
 				constraintLHS.add(1, maxVariable);
@@ -304,7 +312,8 @@ public class PartitioningGenerator {
 		}
 
 		constraintLHS.add(-1, "worst");
-		m_ilp.add(constraintLHS, Operator.EQ, 0);
+		m_ilp.add(constraintNum.toString(), constraintLHS, Operator.EQ, 0);
+		constraintNum++;
 
 		// Add the objective function
 		float bestScheduleProbability = TxnScheduleGraph.getBestCaseScheduleProbability(sample);
@@ -318,6 +327,11 @@ public class PartitioningGenerator {
 		// Solve
 		Solver solver = m_solverFactory.get();
 		Result result = solver.solve(m_ilp);
+		
+		if(result == null) {
+			// Problem infeasible!
+			return null;
+		}
 
 		Map<Integer, ArrayList<Integer>> partitionMapping = new HashMap<Integer, ArrayList<Integer>>();
 
