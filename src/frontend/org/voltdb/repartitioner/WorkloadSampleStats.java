@@ -11,6 +11,8 @@ import java.util.Map;
 public class WorkloadSampleStats {
 	private static final int MAX_TRANSACTIONS_PER_GROUP = 1000;
 
+	private int m_maxTransactionsPerGroup = MAX_TRANSACTIONS_PER_GROUP;
+	
 	private TxnGroupStatsKey m_groupStatsKey = new TxnGroupStatsKey("", 0, 0);
 
 	private Map<TxnGroupStatsKey, ArrayList<TxnGroupStats>> m_stats = new HashMap<TxnGroupStatsKey, ArrayList<TxnGroupStats>>();
@@ -25,6 +27,15 @@ public class WorkloadSampleStats {
 
 	public ArrayList<TxnGroupStats> getMultiPartitionTxnStats() {
 		return m_multiPartitionTxnStats;
+	}
+	
+	public WorkloadSampleStats()
+	{
+	}
+	
+	public WorkloadSampleStats(int maxTransactionsPerGroup)
+	{
+		m_maxTransactionsPerGroup = maxTransactionsPerGroup;
 	}
 
 	/**
@@ -118,10 +129,10 @@ public class WorkloadSampleStats {
 			m_stats.put(groupStatsKey, groupStatsList);
 		}
 
-		if (groupStats != null && groupStats.getNumTransactions() < MAX_TRANSACTIONS_PER_GROUP) {
+		if (groupStats != null && groupStats.getNumTransactions() < m_maxTransactionsPerGroup) {
 			groupStats.recordTransactionLatency(latency);
 		} else {
-			groupStats = new TxnGroupStats(groupStatsKey);
+			groupStats = new TxnGroupStats(groupStatsKey.clone());
 			groupStats.recordTransactionLatency(latency);
 			groupStatsList.add(groupStats);
 

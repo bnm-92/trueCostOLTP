@@ -1,5 +1,6 @@
 package org.voltdb.repartitioner;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -33,7 +34,7 @@ public class TxnGroupStats implements Comparable<TxnGroupStats> {
 	 * Record total network latencies for communication with each partition if
 	 * its site is remote.
 	 */
-	private Map<Integer, StatsList> m_remotePartitionNetworkLatencies;
+	private Map<Integer, StatsList> m_remotePartitionNetworkLatencies = new HashMap<Integer, StatsList>();
 
 	/**
 	 * Local latency of the transaction - latency if all sites are local.
@@ -83,6 +84,13 @@ public class TxnGroupStats implements Comparable<TxnGroupStats> {
 
 		return 0;
 	}
+	
+	public boolean isRemotePartitionNetworkLatencyEstimate(int partition)
+	{
+		StatsList latencies = m_remotePartitionNetworkLatencies.get(partition);
+		
+		return latencies != null ? latencies.isEstimates() : true;
+	}
 
 	public int getLocalLatency() {
 		if (m_localLatency < 0) {
@@ -96,7 +104,11 @@ public class TxnGroupStats implements Comparable<TxnGroupStats> {
 				}
 			}
 
-			m_localLatency = Math.max(getMedianLatency() - maxRemotePartitionNetworkLatency, 0);
+			if (maxRemotePartitionNetworkLatency > 0) {
+				m_localLatency = Math.max(getMedianLatency() - maxRemotePartitionNetworkLatency, 0);
+			} else {
+				m_localLatency = getMedianLatency();
+			}
 		}
 
 		return m_localLatency;
@@ -139,5 +151,17 @@ public class TxnGroupStats implements Comparable<TxnGroupStats> {
 		} else {
 			return 1;
 		}
+	}
+	
+	@Override
+	public String toString()
+	{
+		StringBuilder sb = new StringBuilder();
+		
+		sb.append(m_numTransactions);
+		sb.append('x');
+		sb.append(m_key.toString());
+		
+		return sb.toString();
 	}
 }

@@ -66,13 +66,12 @@ public class TxnGroupStatsKey {
 		m_isSinglePartition = false;
 		m_hashCode = calcHashCode();
 	}
-	
+
 	/**
-	 * Reset the key to be for a group of single-partition transactions
-	 * with the given stored procedure, initiator host id and partition.
+	 * Reset the key to be for a group of single-partition transactions with the
+	 * given stored procedure, initiator host id and partition.
 	 */
-	public void reset(String procedureName, int initiatorHostId, int partition)
-	{
+	public void reset(String procedureName, int initiatorHostId, int partition) {
 		m_procedureName = procedureName;
 		m_initiatorHostId = initiatorHostId;
 		m_partition = partition;
@@ -84,8 +83,7 @@ public class TxnGroupStatsKey {
 	 * Reset the key to be for a group of multi-(every)-partition transactions
 	 * with the given stored procedure, initiator host id.
 	 */
-	public void reset(String procedureName, int initiatorHostId)
-	{
+	public void reset(String procedureName, int initiatorHostId) {
 		m_procedureName = procedureName;
 		m_initiatorHostId = initiatorHostId;
 		m_partition = 0;
@@ -157,5 +155,40 @@ public class TxnGroupStatsKey {
 		}
 
 		return true;
+	}
+	
+	@Override
+	public TxnGroupStatsKey clone()
+	{
+		if(m_isSinglePartition)
+		{
+			return new TxnGroupStatsKey(m_procedureName, m_initiatorHostId, m_partition);
+		}
+		else
+		{
+			return new TxnGroupStatsKey(m_procedureName, m_initiatorHostId);
+		}
+	}
+
+	@Override
+	public String toString() {
+		StringBuilder sb = new StringBuilder();
+
+		sb.append('{');
+		sb.append("procedure: ");
+		sb.append(m_procedureName);
+		sb.append(',');
+		sb.append("initiator-host-id: ");
+		sb.append(m_initiatorHostId);
+		sb.append(',');
+		sb.append("partitions: ");
+		if (m_isSinglePartition) {
+			sb.append(m_partition);
+		} else {
+			sb.append("all");
+		}
+		sb.append('}');
+		
+		return sb.toString();
 	}
 }
