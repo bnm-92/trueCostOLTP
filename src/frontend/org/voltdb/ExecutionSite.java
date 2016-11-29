@@ -1329,6 +1329,11 @@ implements Runnable, SiteTransactionConnection, SiteProcedureConnection
             // and don't communicate any information about safe replication, hence DUMMY_LAST_SEEN_TXN_ID
             // it can be used for global ordering since it is a valid txnid from an initiator
             else if (info instanceof MultiPartitionParticipantMessage) {
+            	Long txn = info.getTxnId();
+            	Long sTime = System.nanoTime();
+            	ArrayList<Long> times = new ArrayList<Long>();
+            	times.add(sTime);
+            	this.time.put(txn, times);
                 m_transactionQueue.noteTransactionRecievedAndReturnLastSeen(info.getInitiatorSiteId(),
                                                   info.getTxnId(),
                                                   false,
@@ -1438,6 +1443,14 @@ implements Runnable, SiteTransactionConnection, SiteProcedureConnection
             {
                 assert (txnState instanceof MultiPartitionParticipantTxnState);
                 txnState.processCompleteTransactionResponse(response);
+                try {
+                	long txnId = response.getTxnId();
+                    long endTime = System.nanoTime();
+                    this.time.get(txnId).add(endTime); // add null checks to be sure
+                } catch (Exception e) {
+                	// do nothing
+                }
+                
             }
         }
         else if (message instanceof ExecutionSiteNodeFailureMessage) {
@@ -2545,6 +2558,11 @@ implements Runnable, SiteTransactionConnection, SiteProcedureConnection
                 if (currentTxnState.needsRollback())
                 {
                     rollbackTransaction(currentTxnState);
+                } else {
+                	long txnId = currentTxnState.txnId;
+                	if (this.time.containsKey(txnId)) {
+                		this.time.get(txnId).add(System.nanoTime());
+                	}
                 }
                 completeTransaction(currentTxnState);
                 TransactionState ts = m_transactionsById.remove(currentTxnState.txnId);

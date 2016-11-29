@@ -45,6 +45,7 @@
 package org.voltdb.dtxn;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -54,6 +55,7 @@ import org.voltdb.ClientInterface;
 import org.voltdb.StoredProcedureInvocation;
 import org.voltdb.TransactionIdManager;
 import org.voltdb.VoltDB;
+import org.voltdb.stats;
 import org.voltdb.client.ProcedureInvocationType;
 import org.voltdb.logging.VoltLogger;
 import org.voltdb.messaging.CoalescedHeartbeatMessage;
@@ -104,7 +106,14 @@ public class SimpleDtxnInitiator extends TransactionInitiator {
     private final int m_siteId;
     private final int m_hostId;
     private long m_lastSeenOriginalTxnId = Long.MIN_VALUE;    
+//    public ArrayList<stats> stats = new ArrayList<stats>();
+    public HashMap<Long, stats> hmStats;
     
+    public void addStat(Long id, Long time) {
+    	if (hmStats.containsKey(id)) {
+    		hmStats.get(id).endTime = time;
+    	}
+    }
     
     public SimpleDtxnInitiator(CatalogContext context,
                                Messenger messenger, int hostId, int siteId,
@@ -147,7 +156,20 @@ public class SimpleDtxnInitiator extends TransactionInitiator {
         long txnId;
         txnId = m_idManager.getNextUniqueTransactionId();
         
-
+      stats st = new stats();
+      st.txnId = txnId;
+      st.storedProcedure = invocation.toString();
+      st.partitions = new ArrayList<Integer>();
+      st.initTime = System.nanoTime();
+      st.endTime = null;
+      
+      hmStats.put(txnId, st);
+      
+      
+      for (int i=0; i<partitions.length; i++)
+      	st.partitions.add(partitions[i]);
+      
+      
         
         boolean retval =
             createTransaction(connectionId, connectionHostname, adminConnection, txnId,
