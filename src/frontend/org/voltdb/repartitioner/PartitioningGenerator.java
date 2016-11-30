@@ -175,8 +175,8 @@ public class PartitioningGenerator {
 			constraintLHS = new Linear();
 			partitionIndex = m_partitionIdToIndex.get(groupStats.getPartition());
 			hostIndex = m_hostIdToIndex.get(groupStats.getInitiatorHostId());
-			int totalLocalLatency = groupStats.getNumTransactions() * groupStats.getLocalLatency();
-			int totalRemoteLatency = groupStats.getNumTransactions()
+			long totalLocalLatency = groupStats.getNumTransactions() * groupStats.getLocalLatency();
+			long totalRemoteLatency = groupStats.getNumTransactions()
 					* groupStats.getMedianRemotePartitionNetworkLatency(groupStats.getPartition());
 
 			constraintLHS.add(1, latencyVariable);
@@ -206,7 +206,7 @@ public class PartitioningGenerator {
 			for (int partition : m_allPartitionIds) {
 				if (groupStats.getMedianRemotePartitionNetworkLatency(partition) != 0) {
 					partitionIndex = m_partitionIdToIndex.get(partition);
-					int totalRemoteLatency = groupStats.getNumTransactions()
+					long totalRemoteLatency = groupStats.getNumTransactions()
 							* groupStats.getMedianRemotePartitionNetworkLatency(partition);
 
 					constraintLHS = new Linear();
@@ -220,7 +220,7 @@ public class PartitioningGenerator {
 			}
 
 			// Add constraint for latency
-			int totalLocalLatency = groupStats.getNumTransactions() * groupStats.getLocalLatency();
+			long totalLocalLatency = groupStats.getNumTransactions() * groupStats.getLocalLatency();
 
 			constraintLHS = new Linear();
 			constraintLHS.add(1, latencyVariable);
@@ -275,6 +275,7 @@ public class PartitioningGenerator {
 
 		// Add constraints to determine the execution time of the worst schedule
 		TxnScheduleGraph worstSchedule = TxnScheduleGraph.getWorstCaseSchedule(sample);
+		currScheduleNode = worstSchedule.getNodeChain().getHeadNode();
 
 		constraintLHS = new Linear();
 

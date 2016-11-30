@@ -46,7 +46,7 @@ public class WorkloadSampleStats {
 	 * @param partition
 	 * @param latency
 	 */
-	public void addSinglePartitionTransaction(String procedureName, int initiatorHostId, int partition, int latency) {
+	public void addSinglePartitionTransaction(String procedureName, int initiatorHostId, int partition, long latency) {
 		m_groupStatsKey.reset(procedureName, initiatorHostId, partition);
 		addTransaction(m_groupStatsKey, latency);
 	}
@@ -59,7 +59,7 @@ public class WorkloadSampleStats {
 	 * @param initiatorHostId
 	 * @param latency
 	 */
-	public void addMultiPartitionTransaction(String procedureName, int initiatorHostId, int latency) {
+	public void addMultiPartitionTransaction(String procedureName, int initiatorHostId, long latency) {
 		m_groupStatsKey.reset(procedureName, initiatorHostId);
 		addTransaction(m_groupStatsKey, latency);
 	}
@@ -77,7 +77,7 @@ public class WorkloadSampleStats {
 	 * @param isEstimate
 	 */
 	public void recordSinglePartitionTransactionRemotePartitionNetworkLatency(String procedureName, int initiatorHostId, int partition, 
-			int latency, boolean isEstimate) {
+			long latency, boolean isEstimate) {
 		m_groupStatsKey.reset(procedureName, initiatorHostId, partition);
 		recordRemotePartitionNetworkLatency(m_groupStatsKey, partition, latency, isEstimate);
 	}
@@ -94,12 +94,12 @@ public class WorkloadSampleStats {
 	 * @param latency
 	 * @param isEstimate
 	 */
-	public void recordMultiPartitionTransactionRemotePartitionNetworkLatency(String procedureName, int initiatorHostId, int partition, int latency, boolean isEstimate) {
+	public void recordMultiPartitionTransactionRemotePartitionNetworkLatency(String procedureName, int initiatorHostId, int partition, long latency, boolean isEstimate) {
 		m_groupStatsKey.reset(procedureName, initiatorHostId);
 		recordRemotePartitionNetworkLatency(m_groupStatsKey, partition, latency, isEstimate);
 	}
 
-	private void recordRemotePartitionNetworkLatency(TxnGroupStatsKey groupStatsKey, int partition, int latency, boolean isEstimate) {
+	private void recordRemotePartitionNetworkLatency(TxnGroupStatsKey groupStatsKey, int partition, long latency, boolean isEstimate) {
 		ArrayList<TxnGroupStats> groupStatsList = m_stats.get(groupStatsKey);
 
 		assert (groupStatsList != null);
@@ -118,7 +118,7 @@ public class WorkloadSampleStats {
 	 * @param latency
 	 *            transaction execution latency.
 	 */
-	private void addTransaction(TxnGroupStatsKey groupStatsKey, int latency) {
+	private void addTransaction(TxnGroupStatsKey groupStatsKey, long latency) {
 		ArrayList<TxnGroupStats> groupStatsList = null;
 		TxnGroupStats groupStats = null;
 

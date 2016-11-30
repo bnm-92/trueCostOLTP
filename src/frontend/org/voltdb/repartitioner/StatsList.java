@@ -8,12 +8,12 @@ public class StatsList {
 	/**
 	 * List of statistics.
 	 */
-	private ArrayList<Integer> m_list = new ArrayList<Integer>();
+	private ArrayList<Long> m_list = new ArrayList<Long>();
 
 	/**
 	 * Median of the list.
 	 */
-	private Integer m_median;
+	private Long m_median;
 
 	/**
 	 * Data points are estimates if true, otherwise real data.
@@ -34,7 +34,7 @@ public class StatsList {
 		m_isEstimates = estimates;
 	}
 
-	public void add(Integer stat) {
+	public void add(Long stat) {
 		m_list.add(stat);
 
 		if (m_median != null) {
@@ -42,7 +42,7 @@ public class StatsList {
 		}
 	}
 
-	public Integer getMedian() {
+	public Long getMedian() {
 		assert (!m_list.isEmpty());
 
 		if (m_median == null) {
@@ -54,7 +54,7 @@ public class StatsList {
 				if (numStats % 2 != 0) {
 					m_median = m_list.get(numStats / 2);
 				} else {
-					m_median = Math.round((float) (m_list.get(numStats / 2 - 1) + m_list.get(numStats / 2)) / 2);
+					m_median = Math.round((double) (m_list.get(numStats / 2 - 1) + m_list.get(numStats / 2)) / 2);
 				}
 			} else {
 				m_median = m_list.get(0);

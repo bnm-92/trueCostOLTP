@@ -39,7 +39,7 @@ public class TxnGroupStats implements Comparable<TxnGroupStats> {
 	/**
 	 * Local latency of the transaction - latency if all sites are local.
 	 */
-	private int m_localLatency = -1;
+	private long m_localLatency = -1;
 
 	/**
 	 * Latency variable name in ILP.
@@ -50,14 +50,14 @@ public class TxnGroupStats implements Comparable<TxnGroupStats> {
 		m_key = key;
 	}
 
-	public void recordTransactionLatency(int latency) {
+	public void recordTransactionLatency(long latency) {
 		assert (latency >= 0);
 
 		m_numTransactions++;
 		m_latencies.add(latency);
 	}
 
-	public void recordRemotePartitionNetworkLatency(int partition, int latency, boolean isEstimate) {
+	public void recordRemotePartitionNetworkLatency(int partition, long latency, boolean isEstimate) {
 		assert (latency >= 0);
 
 		StatsList latencies = m_remotePartitionNetworkLatencies.get(partition);
@@ -71,11 +71,11 @@ public class TxnGroupStats implements Comparable<TxnGroupStats> {
 		}
 	}
 
-	public int getMedianLatency() {
+	public long getMedianLatency() {
 		return m_latencies.getMedian();
 	}
 
-	public int getMedianRemotePartitionNetworkLatency(int partition) {
+	public long getMedianRemotePartitionNetworkLatency(int partition) {
 		StatsList latencies = m_remotePartitionNetworkLatencies.get(partition);
 
 		if (latencies != null) {
@@ -92,9 +92,9 @@ public class TxnGroupStats implements Comparable<TxnGroupStats> {
 		return latencies != null ? latencies.isEstimates() : true;
 	}
 
-	public int getLocalLatency() {
+	public long getLocalLatency() {
 		if (m_localLatency < 0) {
-			int maxRemotePartitionNetworkLatency = Integer.MIN_VALUE;
+			long maxRemotePartitionNetworkLatency = Long.MIN_VALUE;
 
 			for (Entry<Integer, StatsList> e : m_remotePartitionNetworkLatencies.entrySet()) {
 				StatsList latencies = e.getValue();
