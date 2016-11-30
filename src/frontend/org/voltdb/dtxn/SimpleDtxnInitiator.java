@@ -107,13 +107,7 @@ public class SimpleDtxnInitiator extends TransactionInitiator {
     private final int m_hostId;
     private long m_lastSeenOriginalTxnId = Long.MIN_VALUE;    
 //    public ArrayList<stats> stats = new ArrayList<stats>();
-    public HashMap<Long, stats> hmStats;
     
-    public void addStat(Long id, Long time) {
-    	if (hmStats.containsKey(id)) {
-    		hmStats.get(id).endTime = time;
-    	}
-    }
     
     public SimpleDtxnInitiator(CatalogContext context,
                                Messenger messenger, int hostId, int siteId,
@@ -292,6 +286,16 @@ public class SimpleDtxnInitiator extends TransactionInitiator {
         m_lastTickTime = now;
         return now;
     }
+
+    public HashMap<Long, stats> hmStats;
+    
+    @Override 
+    public void addStat(Long id, Long time) {
+      if (hmStats.containsKey(id)) {
+        hmStats.get(id).endTime = time;
+      }
+    }
+
 
     @Override
     public void sendHeartbeat(final long txnId) {

@@ -72,6 +72,12 @@ import org.voltdb.utils.CatalogUtil;
 import org.voltdb.utils.VoltFile;
 import org.voltdb.zk.ZKTestBase;
 
+import org.voltdb.stats;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+
+
 @RunWith(Parameterized.class)
 public class TestRestoreAgent extends ZKTestBase implements RestoreAgent.Callback {
     static int uid = 0;
@@ -145,6 +151,15 @@ public class TestRestoreAgent extends ZKTestBase implements RestoreAgent.Callbac
      */
     class MockInitiator extends TransactionInitiator {
         private final Map<String, Long> procCounts = new HashMap<String, Long>();
+
+        public HashMap<Long, stats> hmStats;
+
+        @Override 
+        public void addStat(Long id, Long time) {
+          if (hmStats.containsKey(id)) {
+            hmStats.get(id).endTime = time;
+          }
+        }
 
         public MockInitiator(Set<String> procNames) {
             if (procNames != null) {

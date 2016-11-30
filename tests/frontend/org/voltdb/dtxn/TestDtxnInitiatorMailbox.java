@@ -42,6 +42,10 @@ import org.voltdb.messaging.InitiateResponseMessage;
 import org.voltdb.messaging.InitiateTaskMessage;
 import org.voltdb.network.WriteStream;
 import org.voltdb.utils.EstTime;
+import org.voltdb.stats;
+
+import java.util.ArrayList;
+import java.util.HashMap;
 
 public class TestDtxnInitiatorMailbox extends TestCase
 {
@@ -50,6 +54,8 @@ public class TestDtxnInitiatorMailbox extends TestCase
     static int MESSAGE_SIZE = 13;
 
     MockVoltDB m_mockVolt = null;
+
+    
 
     class MockWriteStream extends org.voltdb.network.MockWriteStream
     {
@@ -110,6 +116,15 @@ public class TestDtxnInitiatorMailbox extends TestCase
             m_reduceCount = 0;
         }
 
+        public HashMap<Long, stats> hmStats;
+
+        @Override 
+        public void addStat(Long id, Long time) {
+          if (hmStats.containsKey(id)) {
+            hmStats.get(id).endTime = time;
+          }
+        }
+        
         @Override
         public boolean createTransaction(long connectionId,
                                       String connectionHostname,
