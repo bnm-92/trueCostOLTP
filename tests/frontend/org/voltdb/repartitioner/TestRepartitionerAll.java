@@ -222,27 +222,27 @@ public class TestRepartitionerAll extends TestCase {
 		int[] allPartitionIds = new int[] { 101, 102, 201, 202 };
 		
 		PartitioningGenerator gen = new PartitioningGenerator(allHostIds, allPartitionIds, 2);
-		WorkloadSampleStats sample = new WorkloadSampleStats(1);
+		WorkloadSampleStats sample = new WorkloadSampleStats(1000);
 		
-		for (int i = 0; i < 2000; ++i) {
+		for (int i = 0; i < 200000; ++i) {
 			sample.addSinglePartitionTransaction("Proc1", 200, 101, getRandom(2, 3));
 			sample.recordSinglePartitionTransactionRemotePartitionNetworkLatency("Proc1", 200, 101, getRandom(9, 11),
 					true);
 		}
 
-		for (int i = 0; i < 1000; ++i) {
+		for (int i = 0; i < 100000; ++i) {
 			sample.addSinglePartitionTransaction("Proc1", 200, 101, getRandom(11, 14));
 			sample.recordSinglePartitionTransactionRemotePartitionNetworkLatency("Proc1", 200, 101, getRandom(9, 11),
 					false);
 		}
 		
-		for (int i = 0; i < 100; ++i) {
+		for (int i = 0; i < 100000; ++i) {
 			sample.addSinglePartitionTransaction("Proc2", 200, 102, getRandom(4, 5));
 			sample.recordSinglePartitionTransactionRemotePartitionNetworkLatency("Proc2", 200, 102, getRandom(40, 50),
 					true);
 		}
 		
-		for (int i = 0; i < 50; ++i) {
+		for (int i = 0; i < 50000; ++i) {
 			sample.addMultiPartitionTransaction("Proc3", 200, getRandom(112, 170));
 			sample.recordMultiPartitionTransactionRemotePartitionNetworkLatency("Proc3", 200, 102, getRandom(100, 150),
 					false);
@@ -250,7 +250,7 @@ public class TestRepartitionerAll extends TestCase {
 					true);
 		}
 		
-		for (int i = 0; i < 800; ++i) {
+		for (int i = 0; i < 80000; ++i) {
 			sample.addSinglePartitionTransaction("Proc2", 200, 102, getRandom(2, 3));
 			sample.recordSinglePartitionTransactionRemotePartitionNetworkLatency("Proc2", 200, 102, getRandom(20, 30),
 					true);
