@@ -551,9 +551,9 @@ implements Runnable, SiteTransactionConnection, SiteProcedureConnection
                 if (sourceSite != -1) {
                 	System.out.println("crashing source site, failing " + sourceSite);
                 	
-                	VoltDB.instance().getFaultDistributor().reportFault
-                	(new NodeFailureFault(VoltDB.instance().getCatalogContext().
-                			siteTracker.getHostForSite(sourceSite), sourceSite,true));
+//                	VoltDB.instance().getFaultDistributor().reportFault
+//                	(new NodeFailureFault(VoltDB.instance().getCatalogContext().
+//                			siteTracker.getHostForSite(sourceSite), sourceSite,true));
                 	sourceSite = -1;
                 }
                 
@@ -1645,13 +1645,13 @@ implements Runnable, SiteTransactionConnection, SiteProcedureConnection
                     VoltDB.instance().getFaultDistributor().makePPDPolicyDecisions(newFailedSiteIds);
 
                 if (makePPDPolicyDecisions == PPDPolicyDecision.NodeFailure) {
-                    handleSiteFaults(false,
+                    handleSiteFaults2(false,
                             newFailedSiteIds,
                             multiPartitionCommitPoint2,
                             initiatorSafeInitPoint2);
                 }
                 else if (makePPDPolicyDecisions == PPDPolicyDecision.PartitionDetection) {
-                    handleSiteFaults(true,
+                    handleSiteFaults2(true,
                             newFailedSiteIds,
                             multiPartitionCommitPoint2,
                             initiatorSafeInitPoint2);
@@ -2373,6 +2373,175 @@ implements Runnable, SiteTransactionConnection, SiteProcedureConnection
         }
     }
 
+    
+    /**
+     * Process a node failure detection.
+     *
+     * Different sites can process UpdateCatalog sysproc and handleNodeFault()
+     * in different orders. UpdateCatalog changes MUST be commutative with
+     * handleNodeFault.
+     * @param partitionDetected
+     *
+     * @param siteIds Hashset<Integer> of host ids of failed nodes
+     * @param globalCommitPoint the surviving cluster's greatest committed multi-partition transaction id
+     * @param globalInitiationPoint the greatest transaction id acknowledged as globally
+     * 2PC to any surviving cluster execution site by the failed initiator.
+     *
+     */
+    void handleSiteFaults2(boolean partitionDetected,
+            HashSet<Integer> failedSites,
+            long globalMultiPartCommitPoint,
+            HashMap<Integer, Long> initiatorSafeInitiationPoint)
+    {
+//        HashSet<Integer> failedInitiators = new HashSet<Integer>();
+//        HashSet<Integer> failedHosts = new HashSet<Integer>();
+//        for (Integer siteId : failedSites) {
+//            failedHosts.add(m_context.siteTracker.getHostForSite(siteId));
+//        }
+//
+//        StringBuilder sb = new StringBuilder();
+//        for (Integer hostId : failedHosts) {
+//            sb.append(hostId).append(' ');
+//        }
+//        if (m_txnlog.isTraceEnabled())
+//        {
+//            m_txnlog.trace("FUZZTEST handleNodeFault " + sb.toString() +
+//                    " with globalMultiPartCommitPoint " + globalMultiPartCommitPoint + " and safeInitiationPoints "
+//                    + initiatorSafeInitiationPoint);
+//        } else {
+//            m_recoveryLog.info("Handling node faults " + sb.toString() +
+//                    " with globalMultiPartCommitPoint " + globalMultiPartCommitPoint + " and safeInitiationPoints "
+//                    + initiatorSafeInitiationPoint);
+//        }
+//        lastKnownGloballyCommitedMultiPartTxnId = globalMultiPartCommitPoint;
+//
+//        // If possibly partitioned, run through the safe initiated transaction and stall
+//        // The unsafe txns from each initiators will be dropped. after this partition detected branch
+//        if (partitionDetected) {
+//            Long globalInitiationPoint = Long.MIN_VALUE;
+//            for (Long initiationPoint : initiatorSafeInitiationPoint.values()) {
+//                globalInitiationPoint = Math.max( initiationPoint, globalInitiationPoint);
+//            }
+//            m_recoveryLog.info("Scheduling snapshot after txnId " + globalInitiationPoint +
+//                               " for cluster partition fault. Current commit point: " + this.lastCommittedTxnId);
+//
+//            SnapshotSchedule schedule = m_context.cluster.getFaultsnapshots().get("CLUSTER_PARTITION");
+//            m_transactionQueue.makeRoadBlock(
+//                globalInitiationPoint,
+//                QueueState.BLOCKED_CLOSED,
+//                new ExecutionSiteLocalSnapshotMessage(globalInitiationPoint,
+//                                                      schedule.getPath(),
+//                                                      schedule.getPrefix(),
+//                                                      true));
+//        }
+//
+//
+//        // Fix safe transaction scoreboard in transaction queue
+//        for (Integer i : failedSites)
+//        {
+//            if (m_context.siteTracker.getSiteForId(i).getIsexec() == false) {
+//                failedInitiators.add(i);
+//                m_transactionQueue.gotFaultForInitiator(i);
+//            }
+//        }
+
+        /*
+         * List of txns that were not initiated or rolled back.
+         * This will be synchronously logged to the command log
+         * so they can be skipped at replay time.
+         */
+        Set<Long> faultedTxns = new HashSet<Long>();
+
+        //System.out.println("Site " + m_siteId + " dealing with faultable txns " + m_transactionsById.keySet());
+        // Correct transaction state internals and commit
+        // or remove affected transactions from RPQ and txnId hash.
+        Iterator<Long> it = m_transactionsById.keySet().iterator();
+        while (it.hasNext())
+        {
+            final long tid = it.next();
+            TransactionState ts = m_transactionsById.get(tid);
+            ts.handleSiteFaults(failedSites);
+
+            // Fault a transaction that was not globally initiated by a failed initiator
+            if (initiatorSafeInitiationPoint.containsKey(ts.initiatorSiteId) &&
+                    ts.txnId > initiatorSafeInitiationPoint.get(ts.initiatorSiteId) &&
+                failedSites.contains(ts.initiatorSiteId))
+            {
+                m_recoveryLog.info("Site " + m_siteId + " faulting non-globally initiated transaction " + ts.txnId);
+                it.remove();
+                if (!ts.isReadOnly()) {
+                    faultedTxns.add(ts.txnId);
+                }
+                m_transactionQueue.faultTransaction(ts);
+            }
+
+            // Multipartition transaction without a surviving coordinator:
+            // Commit a txn that is in progress and committed elsewhere.
+            // (Must have lost the commit message during the failure.)
+            // Otherwise, without a coordinator, the transaction can't
+            // continue. Must rollback, if in progress, or fault it
+            // from the queues if not yet started.
+            else if (ts instanceof MultiPartitionParticipantTxnState &&
+                     failedSites.contains(ts.coordinatorSiteId))
+            {
+                MultiPartitionParticipantTxnState mpts = (MultiPartitionParticipantTxnState) ts;
+                if (ts.isInProgress() && ts.txnId <= globalMultiPartCommitPoint)
+                {
+                    m_recoveryLog.info("Committing in progress multi-partition txn " + ts.txnId +
+                            " even though coordinator was on a failed host because the txnId <= " +
+                            "the global multi-part commit point");
+                    CompleteTransactionMessage ft =
+                        mpts.createCompleteTransactionMessage(false, false);
+                    m_mailbox.deliverFront(ft);
+                }
+                else if (ts.isInProgress() && ts.txnId > globalMultiPartCommitPoint) {
+                    m_recoveryLog.info("Rolling back in progress multi-partition txn " + ts.txnId +
+                            " because the coordinator was on a failed host and the txnId > " +
+                            "the global multi-part commit point");
+                    CompleteTransactionMessage ft =
+                        mpts.createCompleteTransactionMessage(true, false);
+                    if (!ts.isReadOnly()) {
+                        faultedTxns.add(ts.txnId);
+                    }
+                    m_mailbox.deliverFront(ft);
+                }
+                else
+                {
+                    m_recoveryLog.info("Faulting multi-part transaction " + ts.txnId +
+                            " because the coordinator was on a failed node");
+                    it.remove();
+                    if (!ts.isReadOnly()) {
+                        faultedTxns.add(ts.txnId);
+                    }
+                    m_transactionQueue.faultTransaction(ts);
+                }
+            }
+            // If we're the coordinator, then after we clean up our internal
+            // state due to a failed node, we need to poke ourselves to check
+            // to see if all the remaining dependencies are satisfied.  Do this
+            // with a message to our mailbox so that happens in the
+            // execution site thread
+            else if (ts instanceof MultiPartitionParticipantTxnState &&
+                     ts.coordinatorSiteId == m_siteId)
+            {
+                if (ts.isInProgress())
+                {
+                    m_mailbox.deliverFront(new CheckTxnStateCompletionMessage(ts.txnId));
+                }
+            }
+        }
+        if (m_recoveryProcessor != null) {
+            m_recoveryProcessor.handleSiteFaults( failedSites, m_context.siteTracker);
+        }
+//        try {
+//            //Log it and acquire the completion permit from the semaphore
+//            VoltDB.instance().getCommandLog().logFault(failedInitiators, faultedTxns).acquire();
+//        } catch (InterruptedException e) {
+//            VoltDB.crashLocalVoltDB("Interrupted while attempting to log a fault", true, e);
+//        }
+    }
+
+    
 
     private FragmentResponseMessage processSysprocFragmentTask(
             final TransactionState txnState,

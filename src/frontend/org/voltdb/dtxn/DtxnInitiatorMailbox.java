@@ -242,14 +242,21 @@ public class DtxnInitiatorMailbox implements Mailbox
             // if this is a dummy response, make sure the m_pendingTxns list thinks
             // the site has been removed from the list
             if (r.isRecovering()) {
-                toSend = state.addFailedOrRecoveringResponse(r.getCoordinatorSiteId());
+            	if (state != null) {
+            		if (r != null)
+            			toSend = state.addResponse(r.getCoordinatorSiteId(), r.getClientResponseData());
+            	}
             }
             // otherwise update the InFlightTxnState with the response
             else {
                 toSend = state.addResponse(r.getCoordinatorSiteId(), r.getClientResponseData());
             }
-
-            if (state.hasAllResponses()) {
+            if (state == null) {
+            	if (r != null) {
+//            		m_pendingTxns.remove(r.getTxnId());
+            	}
+            }
+            else if (state.hasAllResponses()) {
                 m_initiator.reduceBackpressure(state.messageSize);
                 m_pendingTxns.remove(r.getTxnId());
 
