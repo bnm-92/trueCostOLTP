@@ -184,11 +184,34 @@ public class DtxnInitiatorMailbox implements Mailbox
         response.setClientHandle(state.invocation.getClientHandle());
         //Horrible but so much more efficient.
         final Connection c = (Connection)state.clientData;
-
+        
         assert(c != null) : "NULL connection in connection state client data.";
+        
         final long now = System.currentTimeMillis();
         final int delta = (int)(now - state.initiateTime);
         response.setClusterRoundtrip(delta);
+        
+        try {
+        	Long  m_txnId = state.txnId;
+        	TrueCostTransactionStats ts = new TrueCostTransactionStats(m_txnId);
+        	ts.setProcedureName(state.invocation.getProcName());
+        	if (state.isSinglePartition) {
+        		ts.setIsSinglePartition(true, state.firstCoordinatorId);
+        	}
+        	else {
+        		ts.setIsSinglePartition(false, -1);
+        	}
+        	ts.setInitiatorSiteId(this.m_siteId);
+        	ts.setInitiatorHostId(this.m_hostMessenger.getHostId());
+        	ts.setLatency(delta);
+        	((SimpleDtxnInitiator)this.m_initiator).stats.add(ts);
+//        	System.out.println(((SimpleDtxnInitiator)this.m_initiator).stats.size());
+//        	System.out.println(ts.toString());
+        	
+        }catch (Exception e) {
+        	e.printStackTrace();
+        }
+                
         m_stats.logTransactionCompleted(
                 state.connectionId,
                 state.connectionHostname,

@@ -45,6 +45,7 @@
 package org.voltdb.dtxn;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -65,6 +66,9 @@ import org.voltdb.messaging.MultiPartitionParticipantMessage;
 
 /** Supports correct execution of multiple partition transactions by executing them one at a time. */
 public class SimpleDtxnInitiator extends TransactionInitiator {
+	
+	public ArrayList<TrueCostTransactionStats> stats = null;
+	
     final TransactionIdManager m_idManager;
 
     private final ExecutorTxnIdSafetyState m_safetyState;
@@ -120,6 +124,8 @@ public class SimpleDtxnInitiator extends TransactionInitiator {
                     (org.voltdb.messaging.HostMessenger)messenger);
         messenger.createMailbox(siteId, VoltDB.DTXN_MAILBOX_ID, m_mailbox);
         m_mailbox.setInitiator(this);
+        stats = new ArrayList<TrueCostTransactionStats>();
+        System.out.println("initialized here");
     }
 
 
@@ -140,6 +146,7 @@ public class SimpleDtxnInitiator extends TransactionInitiator {
     {
         long txnId;
         txnId = m_idManager.getNextUniqueTransactionId();
+        
         boolean retval =
             createTransaction(connectionId, connectionHostname, adminConnection, txnId,
                               invocation, isReadOnly, isSinglePartition, isEveryPartition,
@@ -166,7 +173,7 @@ public class SimpleDtxnInitiator extends TransactionInitiator {
         assert(invocation != null);
         assert(partitions != null);
         assert(numPartitions >= 1);
-
+        
         if (invocation.getType() == ProcedureInvocationType.REPLICATED)
         {
             /*

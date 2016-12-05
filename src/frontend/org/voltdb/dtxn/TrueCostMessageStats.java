@@ -36,4 +36,10 @@ public class TrueCostMessageStats {
 	public long getReceiveTime() {
 		return m_receiveTime;
 	}
+	
+	public String toString() {
+		
+		
+		return null;
+	}
 }
