@@ -17,6 +17,10 @@ public class TrueCostTransactionStatsMessage extends VoltMessage {
 	public TrueCostTransactionStatsMessage(ArrayList<TrueCostTransactionStats> txnStatsList) {
 		m_txnStatsList = txnStatsList.toArray(new TrueCostTransactionStats[] {});
 	}
+	
+	public TrueCostTransactionStats[] getTxnStatsList() {
+		return m_txnStatsList;
+	}
 
 	@Override
 	protected void initFromBuffer() {
