@@ -13,7 +13,7 @@ package org.voltdb.dtxn;
  */
 public class TrueCostTransactionStats {
 	
-	private Long m_txnId = (long) -1;
+	private long m_txnId = -1L;
 	private String m_procedureName = null;
 	private boolean m_singlePartition;
 	private int m_partition = -1;
@@ -40,7 +40,7 @@ public class TrueCostTransactionStats {
 		}
 	}
 	
-	public TrueCostTransactionStats(Long txnId)
+	public TrueCostTransactionStats(long txnId)
 	{
 		m_txnId = txnId;
 	}
