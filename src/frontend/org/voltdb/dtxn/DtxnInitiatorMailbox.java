@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
 import org.voltdb.ClientResponseImpl;
 import org.voltdb.VoltDB;
 import org.voltdb.fault.FaultHandler;
@@ -234,29 +235,20 @@ public class DtxnInitiatorMailbox implements Mailbox
             final InitiateResponseMessage r = (InitiateResponseMessage) message;
 
             state = m_pendingTxns.get(r.getTxnId());
-            Long txnId = r.getTxnId();
-            Long endTime = System.nanoTime();
-            this.m_initiator.addStat(txnId, endTime);
+
             assert(m_siteId == r.getInitiatorSiteId());
 
             // if this is a dummy response, make sure the m_pendingTxns list thinks
             // the site has been removed from the list
             if (r.isRecovering()) {
-            	if (state != null) {
-            		if (r != null)
-            			toSend = state.addResponse(r.getCoordinatorSiteId(), r.getClientResponseData());
-            	}
+                toSend = state.addFailedOrRecoveringResponse(r.getCoordinatorSiteId());
             }
             // otherwise update the InFlightTxnState with the response
             else {
                 toSend = state.addResponse(r.getCoordinatorSiteId(), r.getClientResponseData());
             }
-            if (state == null) {
-            	if (r != null) {
-//            		m_pendingTxns.remove(r.getTxnId());
-            	}
-            }
-            else if (state.hasAllResponses()) {
+
+            if (state.hasAllResponses()) {
                 m_initiator.reduceBackpressure(state.messageSize);
                 m_pendingTxns.remove(r.getTxnId());
 

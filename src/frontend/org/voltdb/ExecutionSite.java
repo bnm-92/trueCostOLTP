@@ -23,7 +23,6 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -107,10 +106,6 @@ implements Runnable, SiteTransactionConnection, SiteProcedureConnection
 {
     
 	public int sourceSite = -1;
-	
-	//stats collector, will map txn to time taken, in System.nano time
-	public HashMap<Long, ArrayList<Long> > time = new HashMap<Long, ArrayList<Long> >();
-	
 	private VoltLogger m_txnlog;
     private final VoltLogger m_recoveryLog = new VoltLogger("RECOVERY");
     private static final VoltLogger log = new VoltLogger("EXEC");
@@ -147,7 +142,6 @@ implements Runnable, SiteTransactionConnection, SiteProcedureConnection
     // Catalog
     public CatalogContext m_context;
     Site getCatalogSite() {
-//    	System.na
         return m_context.cluster.getSites().get(Integer.toString(getSiteId()));
     }
 
@@ -1315,11 +1309,6 @@ implements Runnable, SiteTransactionConnection, SiteProcedureConnection
                 return;
             }
             else if (info instanceof InitiateTaskMessage) {
-            	Long txn = info.getTxnId();
-            	Long sTime = System.nanoTime();
-            	ArrayList<Long> times = new ArrayList<Long>();
-            	times.add(sTime);
-            	this.time.put(txn, times);
                 m_transactionQueue.noteTransactionRecievedAndReturnLastSeen(info.getInitiatorSiteId(),
                                                   info.getTxnId(),
                                                   false,
@@ -1329,11 +1318,6 @@ implements Runnable, SiteTransactionConnection, SiteProcedureConnection
             // and don't communicate any information about safe replication, hence DUMMY_LAST_SEEN_TXN_ID
             // it can be used for global ordering since it is a valid txnid from an initiator
             else if (info instanceof MultiPartitionParticipantMessage) {
-            	Long txn = info.getTxnId();
-            	Long sTime = System.nanoTime();
-            	ArrayList<Long> times = new ArrayList<Long>();
-            	times.add(sTime);
-            	this.time.put(txn, times);
                 m_transactionQueue.noteTransactionRecievedAndReturnLastSeen(info.getInitiatorSiteId(),
                                                   info.getTxnId(),
                                                   false,
@@ -1443,14 +1427,6 @@ implements Runnable, SiteTransactionConnection, SiteProcedureConnection
             {
                 assert (txnState instanceof MultiPartitionParticipantTxnState);
                 txnState.processCompleteTransactionResponse(response);
-                try {
-                	long txnId = response.getTxnId();
-                    long endTime = System.nanoTime();
-                    this.time.get(txnId).add(endTime); // add null checks to be sure
-                } catch (Exception e) {
-                	// do nothing
-                }
-                
             }
         }
         else if (message instanceof ExecutionSiteNodeFailureMessage) {
@@ -1651,7 +1627,7 @@ implements Runnable, SiteTransactionConnection, SiteProcedureConnection
                             initiatorSafeInitPoint2);
                 }
                 else if (makePPDPolicyDecisions == PPDPolicyDecision.PartitionDetection) {
-                    handleSiteFaults2(true,
+                    handleSiteFaults(true,
                             newFailedSiteIds,
                             multiPartitionCommitPoint2,
                             initiatorSafeInitPoint2);
@@ -2372,7 +2348,7 @@ implements Runnable, SiteTransactionConnection, SiteProcedureConnection
             VoltDB.crashLocalVoltDB("Interrupted while attempting to log a fault", true, e);
         }
     }
-
+    
     
     /**
      * Process a node failure detection.
@@ -2535,13 +2511,13 @@ implements Runnable, SiteTransactionConnection, SiteProcedureConnection
         }
 //        try {
 //            //Log it and acquire the completion permit from the semaphore
-//            VoltDB.instance().getCommandLog().logFault(failedInitiators, faultedTxns).acquire();
+////            VoltDB.instance().getCommandLog().logFault(failedInitiators, faultedTxns).acquire();
 //        } catch (InterruptedException e) {
 //            VoltDB.crashLocalVoltDB("Interrupted while attempting to log a fault", true, e);
 //        }
     }
-
     
+
 
     private FragmentResponseMessage processSysprocFragmentTask(
             final TransactionState txnState,
@@ -2727,11 +2703,6 @@ implements Runnable, SiteTransactionConnection, SiteProcedureConnection
                 if (currentTxnState.needsRollback())
                 {
                     rollbackTransaction(currentTxnState);
-                } else {
-                	long txnId = currentTxnState.txnId;
-                	if (this.time.containsKey(txnId)) {
-                		this.time.get(txnId).add(System.nanoTime());
-                	}
                 }
                 completeTransaction(currentTxnState);
                 TransactionState ts = m_transactionsById.remove(currentTxnState.txnId);

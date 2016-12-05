@@ -155,8 +155,6 @@ public abstract class TransactionInitiator {
 
     public abstract void sendHeartbeat(long txnId);
 
-    public abstract void addStat(Long txnId, Long time);
-
     /**
      * Whether or not the initiator is on back pressure.
      * @return

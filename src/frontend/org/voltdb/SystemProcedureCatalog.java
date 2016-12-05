@@ -113,7 +113,6 @@ public class SystemProcedureCatalog {
         listing.put("@Rejoin",                  new Config("org.voltdb.sysprocs.Rejoin",            false, false, false, false, true, true));
         listing.put("@StopAndCopy",             new Config("org.voltdb.sysprocs.StopAndCopy",       false, false, false, false, true, true));
         listing.put("@FailSite",                new Config("org.voltdb.sysprocs.FailSite",          false, false, false, false, false, true));
-        listing.put("@STCRepartition",          new Config("org.voltdb.sysprocs.FailSite",          false, false, false, false, false, true));
         listing.put("@SnapshotSave",            new Config("org.voltdb.sysprocs.SnapshotSave",      false, false, false, false, true, true));
         listing.put("@SnapshotRestore",         new Config("org.voltdb.sysprocs.SnapshotRestore",   false, false, false, true, true, false));
         listing.put("@SnapshotStatus",          new Config("org.voltdb.sysprocs.SnapshotStatus",    false, false, false, false, true, true));

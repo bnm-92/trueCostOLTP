@@ -148,8 +148,4 @@ public class SysProcFragmentId
     public static final long PF_systemInformationAggregate = 191;
     public static final long PF_systemInformationOverview = 192;
     public static final long PF_systemInformationOverviewAggregate = 193;
-    
-    public static final long PF_repartitionInfo = 195;
-    public static final long PF_repartitionInfoAggregate = 196;
-    
 }
