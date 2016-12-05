@@ -129,6 +129,9 @@ public class SimpleDtxnInitiator extends TransactionInitiator {
 		if (this.m_siteId == 0) {
 			TrueCostCollector tcc = new TrueCostCollector(this.m_siteId, this.m_hostId);
 			tcc.start();
+		} else {
+			TrueCostTransactionStatsSender tcs = new TrueCostTransactionStatsSender(this);
+			tcs.start();
 		}
 
 	}
