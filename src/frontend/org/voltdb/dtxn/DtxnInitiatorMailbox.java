@@ -204,7 +204,7 @@ public class DtxnInitiatorMailbox implements Mailbox
         	ts.setInitiatorSiteId(this.m_siteId);
         	ts.setInitiatorHostId(this.m_hostMessenger.getHostId());
         	ts.setLatency(delta);
-        	((SimpleDtxnInitiator)this.m_initiator).stats.add(ts);
+        	((SimpleDtxnInitiator)this.m_initiator).getTxnStatsList().add(ts);
 //        	System.out.println(((SimpleDtxnInitiator)this.m_initiator).stats.size());
 //        	System.out.println(ts.toString());
         	
