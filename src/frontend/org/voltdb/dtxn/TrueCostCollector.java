@@ -3,6 +3,8 @@ package org.voltdb.dtxn;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
+import java.util.Map.Entry;
 
 import org.voltdb.VoltDB;
 import org.voltdb.messaging.SiteMailbox;
@@ -90,7 +92,9 @@ public class TrueCostCollector extends Thread {
 					}
 					Iterator it = m_initiator_hashmap.entrySet().iterator();
 					while ( it.hasNext()) {
-						StatsGroupedByInitiator sgbi = (StatsGroupedByInitiator) it.next();
+						
+						Map.Entry<Integer, StatsGroupedByInitiator> m = (Entry<Integer, StatsGroupedByInitiator>) it.next();
+						StatsGroupedByInitiator sgbi = (StatsGroupedByInitiator) m.getValue();
 						sgbi.avg_local_latency = (sgbi.total_local_latency/sgbi.total_local);
 						if (sgbi.avg_local_latency < 0) {
 							sgbi.avg_local_latency = 0L;
@@ -144,7 +148,7 @@ public class TrueCostCollector extends Thread {
 		m_mailbox = (SiteMailbox) VoltDB.instance().getMessenger().createMailbox(
                 siteId,
                 VoltDB.COLLECTOR_MAILBOX_ID,
-                true);
+                false);
 	}
 	
 	public void shutDown() {
