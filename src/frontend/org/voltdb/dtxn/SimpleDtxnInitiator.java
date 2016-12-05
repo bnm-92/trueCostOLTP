@@ -125,7 +125,12 @@ public class SimpleDtxnInitiator extends TransactionInitiator {
         messenger.createMailbox(siteId, VoltDB.DTXN_MAILBOX_ID, m_mailbox);
         m_mailbox.setInitiator(this);
         stats = new ArrayList<TrueCostTransactionStats>();
-        System.out.println("initialized here");
+        if (this.m_siteId == 0) {
+        	TrueCostCollector tcc = new TrueCostCollector(this.m_siteId, this.m_hostId);
+        	tcc.start();
+        }
+        
+        
     }
 
 
