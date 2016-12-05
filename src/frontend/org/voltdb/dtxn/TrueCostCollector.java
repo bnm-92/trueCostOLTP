@@ -65,7 +65,15 @@ public class TrueCostCollector extends Thread {
 			try {
 				epoch++;
 				VoltMessage message = m_mailbox.recvBlocking(500);
+				
 				if (message instanceof TrueCostTransactionStatsMessage ) {
+					TrueCostTransactionStatsMessage tsm = (TrueCostTransactionStatsMessage) message;
+					
+					if(tsm.getTxnStatsList().length > 0) {
+						System.out.println(tsm.getTxnStatsList().length);
+						System.out.println(tsm.getTxnStatsList()[0].toString());
+					}
+					
 					TrueCostTransactionStats[] tr_arr = null;// = message.getTxnStatsList();
 					for (int i=0; i< tr_arr.length; i++) {
 						int siteId = tr_arr[i].getCoordinatorSiteId();
