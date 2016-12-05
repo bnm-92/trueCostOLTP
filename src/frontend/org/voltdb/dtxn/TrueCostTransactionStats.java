@@ -122,7 +122,7 @@ public class TrueCostTransactionStats {
 
 	public String toString() {
 		StringBuilder sb = new StringBuilder();
-		if (m_txnId != null) {
+		if (m_txnId != -1) {
 			sb.append("The transactionId is : ");
 			sb.append(m_txnId);
 			sb.append(" ");
