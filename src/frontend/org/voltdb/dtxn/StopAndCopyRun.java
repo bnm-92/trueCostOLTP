@@ -5,11 +5,13 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import org.voltdb.VoltDB;
 import org.voltdb.VoltTable;
 import org.voltdb.catalog.Site;
 import org.voltdb.client.Client;
 import org.voltdb.client.ClientFactory;
 import org.voltdb.client.ClientResponse;
+import org.voltdb.fault.NodeFailureFault;
 
 public class StopAndCopyRun extends Thread{
 
@@ -73,11 +75,26 @@ public class StopAndCopyRun extends Thread{
 					String srcHost = (getAliveHostForPartition(partition));
 					String srcSite = (getAliveSiteForPartition(partition));
 					stopAndCopy(srcSite, srcHost, destSite, destHost);
+					commands.add(srcSite);
 					// add failing code later
 				}
 			}
-			
 		}
+		
+		try {
+			Thread.sleep(30000L);
+			for (String srcSite : commands) {
+				int sourceSite = Integer.parseInt(srcSite);
+				VoltDB.instance().getFaultDistributor().reportFault
+				(new NodeFailureFault(VoltDB.instance().getCatalogContext().
+        			siteTracker.getHostForSite(sourceSite), sourceSite,true));
+			}
+				
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
 	}
 	
 	public void stopAndCopy(String srcSite, String srcHost, String destSite, String destHost) {
