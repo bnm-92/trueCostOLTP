@@ -474,6 +474,10 @@ public class SimpleDtxnInitiator extends TransactionInitiator {
 		m_mailbox.removeConnectionStats(connectionId);
 	}
 	
+	public int getSiteId() {
+		return m_siteId;
+	}
+	
 	public ArrayList<TrueCostTransactionStats> getTxnStatsList() {
 		return m_txnStatsListHandle.get();
 	}
