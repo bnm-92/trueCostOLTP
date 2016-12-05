@@ -47,6 +47,7 @@ public abstract class VoltMessage {
     final public static byte AGREEMENT_TASK_ID = 13;
     final public static byte BINARY_PAYLOAD_ID = 14;
     final public static byte COALESCED_HEARTBEAT_ID = 15;
+    final public static byte TRUECOST_TXNSTATS_ID = 16;
 
     // place holder for destination site ids when using multi-cast
     final public static int SEND_TO_MANY = -2;
@@ -154,6 +155,9 @@ public abstract class VoltMessage {
         case BINARY_PAYLOAD_ID:
             message = new BinaryPayloadMessage();
             break;
+        case TRUECOST_TXNSTATS_ID:
+        	message = new TrueCostTransactionStatsMessage();
+        	break;
         default:
             Class<? extends VoltMessage> cls = externals.get(messageType);
             assert(cls != null);

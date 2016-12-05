@@ -129,10 +129,10 @@ public class SimpleDtxnInitiator extends TransactionInitiator {
 		if (this.m_siteId == 0) {
 			TrueCostCollector tcc = new TrueCostCollector(this.m_siteId, this.m_hostId);
 			tcc.start();
-		} else {
-			TrueCostTransactionStatsSender tcs = new TrueCostTransactionStatsSender(this);
-			tcs.start();
 		}
+		
+		TrueCostTransactionStatsSender tcs = new TrueCostTransactionStatsSender(this);
+		tcs.start();
 
 	}
 
@@ -476,15 +476,19 @@ public class SimpleDtxnInitiator extends TransactionInitiator {
 	public void removeConnectionStats(long connectionId) {
 		m_mailbox.removeConnectionStats(connectionId);
 	}
-	
+
+	public int getHostId() {
+		return m_hostId;
+	}
+
 	public int getSiteId() {
 		return m_siteId;
 	}
-	
+
 	public ArrayList<TrueCostTransactionStats> getTxnStatsList() {
 		return m_txnStatsListHandle.get();
 	}
-	
+
 	public ArrayList<TrueCostTransactionStats> swapTxnStatsList(ArrayList<TrueCostTransactionStats> txnStatsList) {
 		return m_txnStatsListHandle.getAndSet(txnStatsList);
 	}

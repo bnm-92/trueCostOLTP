@@ -26,6 +26,8 @@ public class TrueCostTransactionStatsMessage extends VoltMessage {
 
 	@Override
 	protected void initFromBuffer() {
+		m_buffer.position(HEADER_SIZE + 1); // skip message id
+		
 		int procedureNamesSize = m_buffer.getInt();
 		String[] procedureNames = new String[procedureNamesSize];
 
@@ -71,9 +73,12 @@ public class TrueCostTransactionStatsMessage extends VoltMessage {
 		}
 
 		if (m_buffer == null) {
-			m_container = pool.acquire(4 + procedureNamesSize + 4 + m_txnStatsList.length * TRUE_COST_TXN_STATS_SIZE);
+			m_container = pool.acquire(HEADER_SIZE + 1 + 4 + procedureNamesSize + 4 + m_txnStatsList.length * TRUE_COST_TXN_STATS_SIZE);
 			m_buffer = m_container.b;
 		}
+		
+		m_buffer.position(HEADER_SIZE);
+		m_buffer.put(TRUECOST_TXNSTATS_ID);
 
 		m_buffer.putInt(procedureNameIndex);
 		for (Entry<String, Integer> procedureNamesEntry : procedureNames.entrySet()) {
@@ -94,5 +99,7 @@ public class TrueCostTransactionStatsMessage extends VoltMessage {
 			m_buffer.putInt(txnStats.getCoordinatorSiteId());
 			m_buffer.putLong(txnStats.getLatency());
 		}
+		
+		m_buffer.limit(m_buffer.position());
 	}
 }

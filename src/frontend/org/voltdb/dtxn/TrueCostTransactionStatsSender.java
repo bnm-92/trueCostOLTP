@@ -3,11 +3,14 @@ package org.voltdb.dtxn;
 import java.util.ArrayList;
 
 import org.voltdb.VoltDB;
+import org.voltdb.logging.VoltLogger;
 import org.voltdb.messaging.MessagingException;
 import org.voltdb.messaging.SiteMailbox;
 import org.voltdb.messaging.TrueCostTransactionStatsMessage;
 
 public class TrueCostTransactionStatsSender extends Thread {
+	
+	private static final VoltLogger consoleLog = new VoltLogger("CONSOLE");
 
 	/**
 	 * Interval between sending each message.
@@ -33,6 +36,8 @@ public class TrueCostTransactionStatsSender extends Thread {
 
 	@Override
 	public void run() {
+		consoleLog.info("Started transaction stats sender thread for Host ID:" + m_initiator.getHostId() + " Site ID:" + m_initiator.getSiteId());
+		
 		while (true) {
 			long sendTime = System.currentTimeMillis() + SEND_INTERVAL_MS;
 
@@ -49,12 +54,14 @@ public class TrueCostTransactionStatsSender extends Thread {
 			}
 
 			m_initiator.swapTxnStatsList(m_txnStatsList);
-			try {
-				m_mailbox.send(0, VoltDB.COLLECTOR_MAILBOX_ID, new TrueCostTransactionStatsMessage(m_txnStatsList));
-			} catch(MessagingException e) {
-				e.printStackTrace();
+			if(m_txnStatsList.size() > 0) {
+				try {
+					m_mailbox.send(0, VoltDB.COLLECTOR_MAILBOX_ID, new TrueCostTransactionStatsMessage(m_txnStatsList));
+				} catch(MessagingException e) {
+					e.printStackTrace();
+				}
+				m_txnStatsList.clear();
 			}
-			m_txnStatsList.clear();
 		}
 	}
 
