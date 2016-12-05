@@ -287,7 +287,7 @@ public class SimpleDtxnInitiator extends TransactionInitiator {
         return now;
     }
 
-    public HashMap<Long, stats> hmStats;
+    public HashMap<Long, stats> hmStats = new HashMap<Long, stats>();
     
     @Override 
     public void addStat(Long id, Long time) {

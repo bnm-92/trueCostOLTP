@@ -109,7 +109,7 @@ implements Runnable, SiteTransactionConnection, SiteProcedureConnection
 	public int sourceSite = -1;
 	
 	//stats collector, will map txn to time taken, in System.nano time
-	public HashMap<Long, ArrayList<Long> > time;
+	public HashMap<Long, ArrayList<Long> > time = new HashMap<Long, ArrayList<Long> >();
 	
 	private VoltLogger m_txnlog;
     private final VoltLogger m_recoveryLog = new VoltLogger("RECOVERY");
