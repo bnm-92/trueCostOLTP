@@ -108,6 +108,7 @@ public class SiteMailbox implements Mailbox {
     public void send(int siteId, int mailboxId, VoltMessage message)
             throws MessagingException {
         assert(message != null);
+        message.sentFromSiteId = m_siteId;
         m_hostMessenger.send(siteId, mailboxId, message);
     }
 
@@ -116,6 +117,7 @@ public class SiteMailbox implements Mailbox {
             throws MessagingException {
         assert(message != null);
         assert(siteIds != null);
+        message.sentFromSiteId = m_siteId;
         m_hostMessenger.send(siteIds, mailboxId, message);
     }
 

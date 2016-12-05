@@ -51,6 +51,7 @@ public abstract class VoltMessage {
     // place holder for destination site ids when using multi-cast
     final public static int SEND_TO_MANY = -2;
 
+    public int sentFromSiteId = -1;
     public int receivedFromSiteId = -1;
 
     // pluggable handling for messages defined at runtime
