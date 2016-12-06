@@ -15,12 +15,12 @@ public class TrueCostTransactionStatsSender extends Thread {
 	/**
 	 * Interval between sending each message.
 	 */
-	private static final int SEND_INTERVAL_MS = 10;
+	private static final int SEND_INTERVAL_MS = 1;
 
 	/**
 	 * Maximum number of transaction stats collected before we send/drain.
 	 */
-	private static final int MAX_TRANSACTION_STATS = 1000;
+	private static final int MAX_TRANSACTION_STATS = 100;
 
 	private SimpleDtxnInitiator m_initiator;
 	private SiteMailbox m_mailbox;

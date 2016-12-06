@@ -13,6 +13,7 @@ import org.voltdb.messaging.SiteMailbox;
 import org.voltdb.messaging.TrueCostTransactionStatsMessage;
 import org.voltdb.messaging.VoltMessage;
 import org.voltdb.repartitioner.PartitioningGenerator;
+import org.voltdb.repartitioner.PartitioningGeneratorResult;
 import org.voltdb.repartitioner.StatsList;
 import org.voltdb.repartitioner.TxnGroupStatsKey;
 import org.voltdb.repartitioner.WorkloadSampleStats;
@@ -61,7 +62,7 @@ public class TrueCostCollector extends Thread {
 	Map<TxnGroupStatsKey, TxnGroupLatencyStats> txnGroupLatencyStatsMap = new HashMap<TxnGroupStatsKey, TxnGroupLatencyStats>();
 	public WorkloadSampleStats workloadSampleStats = new WorkloadSampleStats();
 	public PartitioningGenerator partitioningGenerator;
-	Map<Integer, ArrayList<Integer>> optimizedPartitioning;
+	PartitioningGeneratorResult optimizedPartitioning;
 
 	TrueCostCollector(int siteId, int hostId) {
 		setDaemon(true);
@@ -209,6 +210,8 @@ public class TrueCostCollector extends Thread {
 
 			if (now >= epochEnd) {
 				if (receivedTxnStats.size() > 0) {
+					consoleLog.info("Received " + receivedTxnStats.size() + " transaction stats this epoch");
+					
 					for (Entry<TxnGroupStatsKey, TxnGroupLatencyStats> txnGroupLatencyStatsMapEntry : txnGroupLatencyStatsMap
 							.entrySet()) {
 						TxnGroupStatsKey txnGroupStatsKey = txnGroupLatencyStatsMapEntry.getKey();
@@ -295,7 +298,8 @@ public class TrueCostCollector extends Thread {
 
 					consoleLog.info("Generating optimum partitioning");
 					optimizedPartitioning = partitioningGenerator.findOptimumPartitioning(workloadSampleStats);
-					consoleLog.info("Generated optimum partitioning:\n" + toString(optimizedPartitioning));
+					consoleLog.info("Generated optimum partitioning:\n" + toString(optimizedPartitioning.getHostToPartitionsMap()));
+					consoleLog.info("Estimated execution time under optimum partitioning: " + optimizedPartitioning.getEstimatedExecTime());
 				}
 
 				receivedTxnStats.clear();

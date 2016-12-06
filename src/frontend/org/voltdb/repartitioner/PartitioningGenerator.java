@@ -118,7 +118,7 @@ public class PartitioningGenerator {
 		createPartitionAssignmentVars();
 	}
 
-	public Map<Integer, ArrayList<Integer>> findOptimumPartitioning(WorkloadSampleStats sample) {
+	public PartitioningGeneratorResult findOptimumPartitioning(WorkloadSampleStats sample) {
 		Integer constraintNum = 1;
 		int latencyVariableIndex = 1;
 		int maxVariableIndex = 1;
@@ -347,8 +347,8 @@ public class PartitioningGenerator {
 
 			partitionMapping.put(m_hostIndexToId.get(j + 1), hostPartitions);
 		}
-
-		return partitionMapping;
+		
+		return new PartitioningGeneratorResult(partitionMapping, result.getObjective().doubleValue());
 	}
 
 	private String makeVariable(String prefix, int index) {
