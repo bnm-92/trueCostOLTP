@@ -152,7 +152,7 @@ public class TrueCostCollector extends Thread {
 			}
 		}
 
-//		initializePartitioningGenerator();
+		initializePartitioningGenerator();
 
 		long epochEnd = System.currentTimeMillis() + EPOCH_LENGTH_MS;
 
