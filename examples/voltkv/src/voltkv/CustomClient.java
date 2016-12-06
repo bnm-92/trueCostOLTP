@@ -28,7 +28,6 @@ public class CustomClient {
     public static void main(String[] args) throws Exception {
     	String input = args[0];
     	
-    	
         Client client = ClientFactory.createClient();
 		
 		if (input.equals("Fail")) {

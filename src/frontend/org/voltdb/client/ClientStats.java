@@ -55,9 +55,9 @@ public class ClientStats {
     long m_clusterRoundTripTime; // microsecs
 
     /** The number of buckets tracking latency with 1ms granularity. */
-    final public static int ONE_MS_BUCKET_COUNT = 50;
+    final public static int ONE_MS_BUCKET_COUNT = 50000;
     /** The number of buckets tracking latency with 10ms granularity. */
-    final public static int TEN_MS_BUCKET_COUNT = 20;
+    final public static int TEN_MS_BUCKET_COUNT = 50;
     /** The number of buckets tracking latency with 100ms granularity. */
     final public static int HUNDRED_MS_BUCKET_COUNT = 10;
 
