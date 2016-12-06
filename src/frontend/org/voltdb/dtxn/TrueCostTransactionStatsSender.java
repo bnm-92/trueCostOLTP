@@ -15,7 +15,7 @@ public class TrueCostTransactionStatsSender extends Thread {
 	/**
 	 * Interval between sending each message.
 	 */
-	private static final int SEND_INTERVAL_MS = 100;
+	private static final int SEND_INTERVAL_MS = 10;
 
 	/**
 	 * Maximum number of transaction stats collected before we send/drain.

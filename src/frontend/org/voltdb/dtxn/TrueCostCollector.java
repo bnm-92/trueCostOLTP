@@ -2,7 +2,6 @@ package org.voltdb.dtxn;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -14,13 +13,15 @@ import org.voltdb.messaging.SiteMailbox;
 import org.voltdb.messaging.TrueCostTransactionStatsMessage;
 import org.voltdb.messaging.VoltMessage;
 import org.voltdb.repartitioner.PartitioningGenerator;
+import org.voltdb.repartitioner.StatsList;
+import org.voltdb.repartitioner.TxnGroupStatsKey;
 import org.voltdb.repartitioner.WorkloadSampleStats;
 
 public class TrueCostCollector extends Thread {
 
 	private static final VoltLogger consoleLog = new VoltLogger("CONSOLE");
 
-	private static final int EPOCH_LENGTH_MS = 30000;
+	private static final int EPOCH_LENGTH_MS = 10000;
 
 	private static final int MAX_PARTITIONS_PER_HOST = 5;
 
@@ -28,40 +29,39 @@ public class TrueCostCollector extends Thread {
 	int hostId = -1;
 	int siteId = -1;
 
-	class AggregatedTrueCostTransactionStats {
-		public TrueCostTransactionStats txnStats;
-		public long localLatency;
-		public long remoteLatency;
-	}
+	private static class TxnGroupLatencyStats {
+		private StatsList m_localLatencies = new StatsList();
+		private StatsList m_remoteLatencies = new StatsList();
 
-	class StatsGroupedByInitiator {
-		public int inititatorId;
-		public long avgLocalLatency;
-		public long avgRemoteLatency;
+		public void addLocalLatency(long latency) {
+			m_localLatencies.add(latency);
+		}
 
-		public long totalLocalLatency;
-		public long totalRemoteLatency;
-		public int totalLocalTxns;
-		public int totalRemoteTxns;
+		public void addRemoteLatency(long latency) {
+			m_remoteLatencies.add(latency);
+		}
 
-		StatsGroupedByInitiator() {
-			inititatorId = 0;
-			avgLocalLatency = 0L;
-			avgRemoteLatency = 0L;
+		public long getLocalLatency() {
+			Long median = m_localLatencies.getMedian();
 
-			totalLocalLatency = 0L;
-			totalRemoteLatency = 0L;
-			totalLocalTxns = 0;
-			totalRemoteTxns = 0;
+			return median != null ? median : 0;
+		}
+
+		public long getRemoteLatency() {
+			Long median = m_remoteLatencies.getMedian();
+
+			return median != null ? median : 0;
 		}
 	}
 
 	public int[] allHostIds;
 	public int[] allPartitionIds;
-	ArrayList<AggregatedTrueCostTransactionStats> arr = new ArrayList<AggregatedTrueCostTransactionStats>();
-	public HashMap<Integer, StatsGroupedByInitiator> initiatorToStatsMap = new HashMap<Integer, StatsGroupedByInitiator>();
+	TxnGroupStatsKey txnGroupStatsKey = new TxnGroupStatsKey("", 0, 0);
+	ArrayList<TrueCostTransactionStats> receivedTxnStats = new ArrayList<TrueCostTransactionStats>();
+	Map<TxnGroupStatsKey, TxnGroupLatencyStats> txnGroupLatencyStatsMap = new HashMap<TxnGroupStatsKey, TxnGroupLatencyStats>();
 	public WorkloadSampleStats workloadSampleStats = new WorkloadSampleStats();
 	public PartitioningGenerator partitioningGenerator;
+	Map<Integer, ArrayList<Integer>> optimizedPartitioning;
 
 	TrueCostCollector(int siteId, int hostId) {
 		setDaemon(true);
@@ -131,118 +131,143 @@ public class TrueCostCollector extends Thread {
 							.getTxnStatsList();
 
 					for (TrueCostTransactionStats txnStats : txnStatsList) {
-						AggregatedTrueCostTransactionStats aggTxnStats = new AggregatedTrueCostTransactionStats();
-						aggTxnStats.txnStats = txnStats;
-						arr.add(aggTxnStats);
+						long latency = Math.max(1, txnStats.getLatency());
+						int coordinatorSiteId = txnStats.getCoordinatorSiteId();
+						int initiatorHostId = txnStats.getInitiatorHostId();
+
+						receivedTxnStats.add(txnStats);
+
+						if (txnStats.isSinglePartition()) {
+							// Group together single-partition transactions
+							// executing stored procedure at initiator
+							txnGroupStatsKey.reset(txnStats.getProcedureName(), txnStats.getInitiatorHostId(), 0);
+						} else {
+							// Group together multi-partition transactions
+							// executing at initiator
+							txnGroupStatsKey.reset(txnStats.getProcedureName(), txnStats.getInitiatorHostId());
+						}
+
+						TxnGroupLatencyStats txnGroupLatencyStats = txnGroupLatencyStatsMap.get(txnGroupStatsKey);
+						if (txnGroupLatencyStats == null) {
+							txnGroupLatencyStats = new TxnGroupLatencyStats();
+							txnGroupLatencyStatsMap.put(txnGroupStatsKey.clone(), txnGroupLatencyStats);
+						}
+
+						if (txnStats.isSinglePartition()) {
+							if (isLocal(coordinatorSiteId, initiatorHostId)) {
+								// Coordinator and execution are the same, so
+								// recorded latency is local latency
+								txnGroupLatencyStats.addLocalLatency(latency);
+							} else {
+								// Execution site not on local host, record as a
+								// remote latency
+								txnGroupLatencyStats.addRemoteLatency(latency);
+							}
+						} else {
+							// Estimate the local latency to be 10% of the
+							// recorded latency
+							long localLatency = Math.max(1, Math.round((double) latency * 0.10));
+
+							txnGroupLatencyStats.addLocalLatency(localLatency);
+							txnGroupLatencyStats.addRemoteLatency(latency - localLatency);
+						}
 					}
 				}
 			}
 
 			if (now >= epochEnd) {
-				if (arr.size() > 0) {
-
-					consoleLog.info("Running partitioning generator at " + now + "ms");
-
-					for (AggregatedTrueCostTransactionStats aggTxnStats : arr) {
-						TrueCostTransactionStats txnStats = aggTxnStats.txnStats;
-
-						int siteId = txnStats.getCoordinatorSiteId();
-						int hostId = txnStats.getInitiatorHostId();
-						int initId = txnStats.getInitiatorSiteId();
-
-						StatsGroupedByInitiator sgbi = null;
-						if (this.initiatorToStatsMap.containsKey(initId)) {
-							sgbi = initiatorToStatsMap.get(initId);
-						} else {
-							sgbi = new StatsGroupedByInitiator();
-							this.initiatorToStatsMap.put(initId, sgbi);
-						}
-
-						if (isLocal(siteId, hostId)) {
-							sgbi.totalLocalLatency += txnStats.getLatency();
-							sgbi.totalLocalTxns++;
-						} else {
-							sgbi.totalRemoteLatency += txnStats.getLatency();
-							sgbi.totalRemoteTxns++;
-						}
-					}
-
-					for (Entry<Integer, StatsGroupedByInitiator> initiatorToStatsMapEntry : initiatorToStatsMap
+				if (receivedTxnStats.size() > 0) {
+					for (Entry<TxnGroupStatsKey, TxnGroupLatencyStats> txnGroupLatencyStatsMapEntry : txnGroupLatencyStatsMap
 							.entrySet()) {
-						StatsGroupedByInitiator sgbi = initiatorToStatsMapEntry.getValue();
-						if (sgbi.totalLocalTxns > 0) {
-							sgbi.avgLocalLatency = (sgbi.totalLocalLatency / sgbi.totalLocalTxns);
-						}
-						if (sgbi.totalRemoteTxns > 0) {
-							sgbi.avgRemoteLatency = (sgbi.totalRemoteLatency / sgbi.totalRemoteTxns);
+						TxnGroupStatsKey txnGroupStatsKey = txnGroupLatencyStatsMapEntry.getKey();
+						TxnGroupLatencyStats txnGroupLatencyStats = txnGroupLatencyStatsMapEntry.getValue();
+
+						if (txnGroupLatencyStats.getLocalLatency() > 0 || txnGroupLatencyStats.getRemoteLatency() > 0) {
+							if (txnGroupLatencyStats.getLocalLatency() == 0) {
+								// Estimate the local latency to be 50% of the
+								// remote latency
+								long localLatency = Math.max(1,
+										Math.round((double) txnGroupLatencyStats.getRemoteLatency() * 0.50));
+								txnGroupLatencyStats.addLocalLatency(localLatency);
+							} else if (txnGroupLatencyStats.getRemoteLatency() == 0) {
+								// Estimate the remote latency to be 2x the
+								// local latency
+								txnGroupLatencyStats.addRemoteLatency(txnGroupLatencyStats.getLocalLatency() * 2);
+							}
+
+							consoleLog.info("Transaction group latency stats. Group: " + txnGroupStatsKey + ", Local: "
+									+ txnGroupLatencyStats.getLocalLatency() + "ms, Remote: "
+									+ txnGroupLatencyStats.getRemoteLatency() + "ms");
+						} else {
+							consoleLog.warn("Could not get local or remote latency for transaction group "
+									+ txnGroupLatencyStatsMapEntry.getKey());
 						}
 					}
 
-					for (AggregatedTrueCostTransactionStats aggTxnStats : arr) {
-						TrueCostTransactionStats txnStats = aggTxnStats.txnStats;
-
-						int siteId = txnStats.getCoordinatorSiteId();
-						int hostId = txnStats.getInitiatorHostId();
-						int initId = txnStats.getInitiatorSiteId();
-
-						StatsGroupedByInitiator sgbi = initiatorToStatsMap.get(initId);
-						if (isLocal(siteId, hostId)) {
-							aggTxnStats.localLatency = txnStats.getLatency();
-							aggTxnStats.remoteLatency = sgbi.avgRemoteLatency;
-						} else {
-							aggTxnStats.localLatency = sgbi.avgLocalLatency;
-							aggTxnStats.remoteLatency = txnStats.getLatency();
-						}
+					for (TrueCostTransactionStats txnStats : receivedTxnStats) {
+						TxnGroupLatencyStats txnGroupLatencyStats = null;
+						long localLatency = 0L;
+						long remoteLatency = 0L;
 
 						if (txnStats.isSinglePartition()) {
-							workloadSampleStats.addSinglePartitionTransaction(txnStats.getProcedureName(),
-									txnStats.getInitiatorHostId(), txnStats.getPartition(),
-									aggTxnStats.localLatency + aggTxnStats.remoteLatency);
-							workloadSampleStats.recordSinglePartitionTransactionRemotePartitionNetworkLatency(
-									txnStats.getProcedureName(), txnStats.getInitiatorHostId(), txnStats.getPartition(),
-									aggTxnStats.remoteLatency, false);
+							txnGroupStatsKey.reset(txnStats.getProcedureName(), txnStats.getInitiatorHostId(), 0);
+							txnGroupLatencyStats = txnGroupLatencyStatsMap.get(txnGroupStatsKey);
+
+							if (txnGroupLatencyStats != null) {
+								localLatency = txnGroupLatencyStats.getLocalLatency();
+								remoteLatency = txnGroupLatencyStats.getRemoteLatency();
+
+								if (localLatency > 0 && remoteLatency > 0) {
+									workloadSampleStats.addSinglePartitionTransaction(txnStats.getProcedureName(),
+											txnStats.getInitiatorHostId(), txnStats.getPartition(),
+											localLatency + remoteLatency);
+									workloadSampleStats.recordSinglePartitionTransactionRemotePartitionNetworkLatency(
+											txnStats.getProcedureName(), txnStats.getInitiatorHostId(),
+											txnStats.getPartition(), remoteLatency, true);
+								} else {
+									consoleLog.warn(
+											"Could not get local and remote latency stats for transaction " + txnStats);
+								}
+							} else {
+								consoleLog.warn(
+										"Could not get transaction group latency stats for transaction " + txnStats);
+							}
 						} else {
-							workloadSampleStats.addMultiPartitionTransaction(txnStats.getProcedureName(),
-									txnStats.getInitiatorHostId(),
-									aggTxnStats.localLatency + aggTxnStats.remoteLatency);
+							txnGroupStatsKey.reset(txnStats.getProcedureName(), txnStats.getInitiatorHostId());
+							txnGroupLatencyStats = txnGroupLatencyStatsMap.get(txnGroupStatsKey);
 
-							for (int partition : allPartitionIds) {
-								workloadSampleStats.recordMultiPartitionTransactionRemotePartitionNetworkLatency(
-										txnStats.getProcedureName(), txnStats.getInitiatorHostId(), partition,
-										aggTxnStats.remoteLatency, false);
+							if (txnGroupLatencyStats != null) {
+								localLatency = txnGroupLatencyStats.getLocalLatency();
+								remoteLatency = txnGroupLatencyStats.getRemoteLatency();
+
+								if (localLatency > 0 && remoteLatency > 0) {
+									workloadSampleStats.addMultiPartitionTransaction(txnStats.getProcedureName(),
+											txnStats.getInitiatorHostId(), localLatency + remoteLatency);
+
+									for (int partition : allPartitionIds) {
+										workloadSampleStats
+												.recordMultiPartitionTransactionRemotePartitionNetworkLatency(
+														txnStats.getProcedureName(), txnStats.getInitiatorHostId(),
+														partition, remoteLatency, true);
+									}
+								} else {
+									consoleLog.warn(
+											"Could not get local and remote latency stats for transaction " + txnStats);
+								}
+							} else {
+								consoleLog.warn(
+										"Could not get transaction group latency stats for transaction " + txnStats);
 							}
 						}
 					}
 
-					consoleLog.info("Transaction statistics collector generating partitioning");
-					Map<Integer, ArrayList<Integer>> hostToPartitionsMap = partitioningGenerator
-							.findOptimumPartitioning(workloadSampleStats);
-					consoleLog.info("Transaction statistics collector done generating partitioning");
-					
-					for(Entry<Integer, ArrayList<Integer>> hostToPartitionsMapEntry : hostToPartitionsMap.entrySet()) {
-						StringBuilder sb = new StringBuilder();
-						
-						sb.append(hostToPartitionsMapEntry.getKey());
-						sb.append(":{");
-						
-						int i = 0;
-						for(Integer partitionId : hostToPartitionsMapEntry.getValue()) {
-							if(i > 0) {
-								sb.append(',');
-							}
-							sb.append(partitionId);
-							++i;
-						}
-						
-						sb.append("}\n");
-						
-						consoleLog.info("optimum partitioning: " + sb.toString());
-					}
-
+					consoleLog.info("Generating optimum partitioning");
+					optimizedPartitioning = partitioningGenerator.findOptimumPartitioning(workloadSampleStats);
+					consoleLog.info("Generated optimum partitioning");
 				}
 
-				arr.clear();
-				initiatorToStatsMap.clear();
+				receivedTxnStats.clear();
+				txnGroupLatencyStatsMap.clear();
 				workloadSampleStats.clearStats();
 
 				epochEnd = System.currentTimeMillis() + EPOCH_LENGTH_MS;

@@ -43,7 +43,7 @@ public class StatsList {
 	}
 
 	public Long getMedian() {
-		assert (!m_list.isEmpty());
+		// assert (!m_list.isEmpty());
 
 		if (m_median == null) {
 			int numStats = m_list.size();
@@ -56,7 +56,7 @@ public class StatsList {
 				} else {
 					m_median = Math.round((double) (m_list.get(numStats / 2 - 1) + m_list.get(numStats / 2)) / 2);
 				}
-			} else {
+			} else if (numStats == 1) {
 				m_median = m_list.get(0);
 			}
 		}
