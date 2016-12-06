@@ -42,7 +42,7 @@ public class TrueCostTransactionStatsSender extends Thread {
 			long sendTime = System.currentTimeMillis() + SEND_INTERVAL_MS;
 
 			while (System.currentTimeMillis() < sendTime) {
-				if (m_initiator.getTxnStatsList().size() >= MAX_TRANSACTION_STATS) {
+				if (m_initiator.getNumTransactionStats() >= MAX_TRANSACTION_STATS) {
 					break;
 				}
 
@@ -53,7 +53,7 @@ public class TrueCostTransactionStatsSender extends Thread {
 				}
 			}
 
-			m_initiator.swapTxnStatsList(m_txnStatsList);
+			m_initiator.drainTransactionStats(m_txnStatsList);
 			if(m_txnStatsList.size() > 0) {
 				try {
 					m_mailbox.send(0, VoltDB.COLLECTOR_MAILBOX_ID, new TrueCostTransactionStatsMessage(m_txnStatsList));

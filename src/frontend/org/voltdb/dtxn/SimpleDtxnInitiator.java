@@ -69,9 +69,8 @@ import org.voltdb.messaging.MultiPartitionParticipantMessage;
  * them one at a time.
  */
 public class SimpleDtxnInitiator extends TransactionInitiator {
-
-	public AtomicReference<ArrayList<TrueCostTransactionStats>> m_txnStatsListHandle = new AtomicReference<ArrayList<TrueCostTransactionStats>>(
-			new ArrayList<TrueCostTransactionStats>());
+	
+	public ArrayList<TrueCostTransactionStats> m_txnStatsList = new ArrayList<TrueCostTransactionStats>();
 
 	final TransactionIdManager m_idManager;
 
@@ -484,12 +483,27 @@ public class SimpleDtxnInitiator extends TransactionInitiator {
 	public int getSiteId() {
 		return m_siteId;
 	}
-
-	public ArrayList<TrueCostTransactionStats> getTxnStatsList() {
-		return m_txnStatsListHandle.get();
+	
+	public void addTransactionStat(TrueCostTransactionStats txnStats) {
+		synchronized(m_txnStatsList) {
+			m_txnStatsList.add(txnStats);
+		}
 	}
-
-	public ArrayList<TrueCostTransactionStats> swapTxnStatsList(ArrayList<TrueCostTransactionStats> txnStatsList) {
-		return m_txnStatsListHandle.getAndSet(txnStatsList);
+	
+	public int getNumTransactionStats() {
+		int numTxnStats = 0;
+		
+		synchronized(m_txnStatsList) {
+			numTxnStats = m_txnStatsList.size();
+		}
+		
+		return numTxnStats;
+	}
+	
+	public void drainTransactionStats(ArrayList<TrueCostTransactionStats> txnStatsList) {
+		synchronized(m_txnStatsList) {
+			txnStatsList.addAll(m_txnStatsList);
+			m_txnStatsList.clear();
+		}
 	}
 }

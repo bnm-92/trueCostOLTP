@@ -42,8 +42,8 @@ public class TrueCostTransactionStatsMessage extends VoltMessage {
 		int txnStatsListSize = m_buffer.getInt();
 		m_txnStatsList = new TrueCostTransactionStats[txnStatsListSize];
 
-		for (int i = 0; i < txnStatsListSize; ++i) {
-			TrueCostTransactionStats txnStats = new TrueCostTransactionStats(m_buffer.getInt());
+		for (int i = 0; i < txnStatsListSize; i++) {
+			TrueCostTransactionStats txnStats = new TrueCostTransactionStats(m_buffer.getLong());
 			
 			txnStats.setProcedureName(procedureNames[m_buffer.getInt()]);
 			txnStats.setIsSinglePartition(m_buffer.get() == 1 ? true : false, m_buffer.getInt());

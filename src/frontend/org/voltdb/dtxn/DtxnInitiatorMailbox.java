@@ -196,15 +196,16 @@ public class DtxnInitiatorMailbox implements Mailbox
         	TrueCostTransactionStats ts = new TrueCostTransactionStats(m_txnId);
         	ts.setProcedureName(state.invocation.getProcName());
         	if (state.isSinglePartition) {
-        		ts.setIsSinglePartition(true, state.firstCoordinatorId);
+        		ts.setIsSinglePartition(true, VoltDB.instance().getCatalogContext().siteTracker.getPartitionForSite(state.firstCoordinatorId));
         	}
         	else {
         		ts.setIsSinglePartition(false, -1);
         	}
+        	ts.setCoordinatorSiteId(state.firstCoordinatorId);
         	ts.setInitiatorSiteId(this.m_siteId);
         	ts.setInitiatorHostId(this.m_hostMessenger.getHostId());
         	ts.setLatency(delta);
-        	((SimpleDtxnInitiator)this.m_initiator).getTxnStatsList().add(ts);
+        	((SimpleDtxnInitiator)this.m_initiator).addTransactionStat(ts);
 //        	System.out.println(((SimpleDtxnInitiator)this.m_initiator).stats.size());
 //        	System.out.println(ts.toString());
         	

@@ -20,7 +20,7 @@ public class TrueCostCollector extends Thread {
 
 	private static final VoltLogger consoleLog = new VoltLogger("CONSOLE");
 
-	private static final int EPOCH_LENGTH_MS = 10000;
+	private static final int EPOCH_LENGTH_MS = 30000;
 
 	private static final int MAX_PARTITIONS_PER_HOST = 5;
 
@@ -80,10 +80,9 @@ public class TrueCostCollector extends Thread {
 		Set<Integer> siteIds = st.m_liveSiteIds;
 
 		allHostIds = new int[hostIds.size()];
-		allPartitionIds = new int[siteIds.size()-hostIds.size()];
+		allPartitionIds = new int[siteIds.size() - hostIds.size()];
 
 		for (Integer siteId : siteIds) {
-			consoleLog.info("site is : " + siteId);
 			Site site = st.getSiteForId(siteId);
 			if (site.getIsexec()) {
 				allPartitionIds[i] = st.getPartitionForSite(siteId);
@@ -109,17 +108,17 @@ public class TrueCostCollector extends Thread {
 	}
 
 	public void run() {
-		while(!VoltDB.instance().isServerInitialized()) {
+		while (!VoltDB.instance().isServerInitialized()) {
 			consoleLog.info("Transaction statistics collector waiting for VoltDB to start");
 			try {
 				Thread.sleep(1000);
-			} catch(InterruptedException e) {
+			} catch (InterruptedException e) {
 				// Swallow
 			}
 		}
-		
+
 		initializePartitioningGenerator();
-		
+
 		long epochEnd = System.currentTimeMillis() + EPOCH_LENGTH_MS;
 
 		while (true) {
@@ -141,6 +140,8 @@ public class TrueCostCollector extends Thread {
 
 			if (now >= epochEnd) {
 				if (arr.size() > 0) {
+
+					consoleLog.info("Running partitioning generator at " + now + "ms");
 
 					for (AggregatedTrueCostTransactionStats aggTxnStats : arr) {
 						TrueCostTransactionStats txnStats = aggTxnStats.txnStats;
@@ -211,11 +212,31 @@ public class TrueCostCollector extends Thread {
 										aggTxnStats.remoteLatency, false);
 							}
 						}
+					}
 
-						consoleLog.info("Transaction statistics collector generating partitioning");
-							Map<Integer, ArrayList<Integer>> hostToPartitionsMap = partitioningGenerator
-									.findOptimumPartitioning(workloadSampleStats);
-						consoleLog.info("Transaction statistics collector done generating partitioning");
+					consoleLog.info("Transaction statistics collector generating partitioning");
+					Map<Integer, ArrayList<Integer>> hostToPartitionsMap = partitioningGenerator
+							.findOptimumPartitioning(workloadSampleStats);
+					consoleLog.info("Transaction statistics collector done generating partitioning");
+					
+					for(Entry<Integer, ArrayList<Integer>> hostToPartitionsMapEntry : hostToPartitionsMap.entrySet()) {
+						StringBuilder sb = new StringBuilder();
+						
+						sb.append(hostToPartitionsMapEntry.getKey());
+						sb.append(":{");
+						
+						int i = 0;
+						for(Integer partitionId : hostToPartitionsMapEntry.getValue()) {
+							if(i > 0) {
+								sb.append(',');
+							}
+							sb.append(partitionId);
+							++i;
+						}
+						
+						sb.append("}\n");
+						
+						consoleLog.info("optimum partitioning: " + sb.toString());
 					}
 
 				}
