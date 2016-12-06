@@ -381,7 +381,7 @@ DISTRIBUTION
     </copy>
     <copy todir="${dist.dir}/voltdb" flatten="true" >
         <fileset dir="." defaultexcludes="yes">
-            <include name="third_party/cpp/jnilib/libglpk_java*" />
+            <include name="third_party/cpp/jnilib/libglpk*" />
         </fileset>
     </copy>
 

@@ -134,6 +134,8 @@ for f in $VOLTDB_HOME/lib/*.jar; do
   CLASSPATH=${CLASSPATH}:$f;
 done
 
+export LD_LIBRARY_PATH=${VOLTDB_HOME}/voltdb:${LD_LIBRARY_PATH}
+
 # run it
 export CMDVAL="$JAVA -server -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp "
 export CMDVAL=$CMDVAL"-XX:-ReduceInitialCardMarks $JAVA_HEAP_MAX $VOLTDB_OPTS "
