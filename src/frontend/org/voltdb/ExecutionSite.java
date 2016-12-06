@@ -87,6 +87,7 @@ import org.voltdb.messaging.Mailbox;
 import org.voltdb.messaging.MessagingException;
 import org.voltdb.messaging.MultiPartitionParticipantMessage;
 import org.voltdb.messaging.RecoveryMessage;
+import org.voltdb.messaging.StopAndCopyDoneMessage;
 import org.voltdb.messaging.Subject;
 import org.voltdb.messaging.TransactionInfoBaseMessage;
 import org.voltdb.messaging.VoltMessage;
@@ -541,6 +542,14 @@ implements Runnable, SiteTransactionConnection, SiteProcedureConnection
                     ee.toggleProfiler(0);
                     VoltDB.instance().onExecutionSiteRecoveryCompletion(bytesTransferredTotal);
                 }
+                
+                VoltMessage stcMessage = new StopAndCopyDoneMessage();
+                try {
+					m_mailbox.send(0, VoltDB.COLLECTOR_MAILBOX_ID, stcMessage);
+				} catch (MessagingException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
                 
                 if (sourceSite != -1) {
                 	System.out.println("crashing source site, failing " + sourceSite);

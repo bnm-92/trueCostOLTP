@@ -13,15 +13,36 @@ import org.voltdb.client.ClientFactory;
 import org.voltdb.client.ClientResponse;
 import org.voltdb.fault.NodeFailureFault;
 
-public class StopAndCopyRun extends Thread{
-
-	Map<Integer, ArrayList<Integer>> hm = null;
+public class StopAndCopyRun{
+	ArrayList<String> commands = null;
 	SiteTracker st = null;
 	
-	StopAndCopyRun(Map<Integer, ArrayList<Integer>> in_map, SiteTracker st) {
+	public int doStopAndCopy(Map<Integer, ArrayList<Integer>> hm, SiteTracker st) {
 		this.st = st;
-		this.hm = in_map;
+		ArrayList<String> commands = new ArrayList<String>();
+		Iterator it = hm.entrySet().iterator();
+		int count = 0;
+		while (it.hasNext()) {
+			Map.Entry<Integer, ArrayList<Integer>> m = (Entry<Integer, ArrayList<Integer>>) it.next();
+			int hostId = m.getKey();
+			ArrayList<Integer> partitions = m.getValue();
+			for (Integer partition : partitions) {
+				if (!isLocal(hostId, partition)) {
+					// add stop and copy command
+					String destHost = Integer.toString(hostId);
+					String destSite = (getDeadSiteForPartition(partition));
+					String srcHost = (getAliveHostForPartition(partition));
+					String srcSite = (getAliveSiteForPartition(partition));
+					stopAndCopy(srcSite, srcHost, destSite, destHost);
+					commands.add(srcSite);
+					count++;
+					// add failing code later
+				}
+			}
+		}
+		return count;
 	}
+	
 	boolean isLocal(int hostId, int partition) {
 		ArrayList<Integer> sites = st.m_hostsToSites.get(hostId);
 		for (int s: sites) {
@@ -60,41 +81,13 @@ public class StopAndCopyRun extends Thread{
 		return Integer.toString(hostId);
 	}
 	
-	public void run() {
-		ArrayList<String> commands = new ArrayList<String>();
-		Iterator it = hm.entrySet().iterator();
-		while (it.hasNext()) {
-			Map.Entry<Integer, ArrayList<Integer>> m = (Entry<Integer, ArrayList<Integer>>) it.next();
-			int hostId = m.getKey();
-			ArrayList<Integer> partitions = m.getValue();
-			for (Integer partition : partitions) {
-				if (!isLocal(hostId, partition)) {
-					// add stop and copy command
-					String destHost = Integer.toString(hostId);
-					String destSite = (getDeadSiteForPartition(partition));
-					String srcHost = (getAliveHostForPartition(partition));
-					String srcSite = (getAliveSiteForPartition(partition));
-					stopAndCopy(srcSite, srcHost, destSite, destHost);
-					commands.add(srcSite);
-					// add failing code later
-				}
-			}
+	void crashSource() {
+		for (String srcSite : commands) {
+			int sourceSite = Integer.parseInt(srcSite);
+			VoltDB.instance().getFaultDistributor().reportFault
+			(new NodeFailureFault(VoltDB.instance().getCatalogContext().
+				siteTracker.getHostForSite(sourceSite), sourceSite,true));
 		}
-		
-		try {
-			Thread.sleep(30000L);
-			for (String srcSite : commands) {
-				int sourceSite = Integer.parseInt(srcSite);
-				VoltDB.instance().getFaultDistributor().reportFault
-				(new NodeFailureFault(VoltDB.instance().getCatalogContext().
-        			siteTracker.getHostForSite(sourceSite), sourceSite,true));
-			}
-				
-		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		
 	}
 	
 	public void stopAndCopy(String srcSite, String srcHost, String destSite, String destHost) {
