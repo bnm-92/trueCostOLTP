@@ -676,5 +676,4 @@ public class VoltDB {
         throw new CloneNotSupportedException();
     }
     private static VoltDBInterface singleton = new RealVoltDB();
-
 }

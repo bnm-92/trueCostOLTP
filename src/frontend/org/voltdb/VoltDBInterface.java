@@ -229,4 +229,6 @@ public interface VoltDBInterface
 	String doSTCPrepare(int srcHost, int srcSite, int destHost, int destSite, long currentTxnId, String cUpdate);
 
 //	String doSTCPrepare(long currentTxnId, int srcHost, int srcSite, int destHost, int destSite);
+	
+	public boolean isServerInitialized();
 }

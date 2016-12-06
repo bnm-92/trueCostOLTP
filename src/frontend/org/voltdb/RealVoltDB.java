@@ -250,7 +250,13 @@ public class RealVoltDB implements VoltDBInterface, RestoreAgent.Callback
     final Map<Integer, String> m_clusterMetadata = Collections.synchronizedMap(new HashMap<Integer, String>());
 
     private ExecutorService m_computationService;
-
+    
+    private boolean m_isServerInitialized;
+    
+    public boolean isServerInitialized() {
+    	return m_isServerInitialized;
+    }
+    
     // methods accessed via the singleton
     @Override
     public void startSampler() {
@@ -580,6 +586,8 @@ public class RealVoltDB implements VoltDBInterface, RestoreAgent.Callback
                 m_restoreAgent.setCatalogContext(m_catalogContext);
                 m_restoreAgent.setInitiator(initiator);
             }
+            
+            m_isServerInitialized = true;
         }
     }
 

@@ -641,4 +641,8 @@ public class MockVoltDB implements VoltDBInterface
 		// TODO Auto-generated method stub
 		return null;
 	}
+	
+	public boolean isServerInitialized() {
+		return false;
+	}
 }
