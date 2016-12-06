@@ -8,6 +8,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 import org.voltdb.VoltDB;
+import org.voltdb.catalog.Site;
 import org.voltdb.logging.VoltLogger;
 import org.voltdb.messaging.SiteMailbox;
 import org.voltdb.messaging.TrueCostTransactionStatsMessage;
@@ -79,11 +80,15 @@ public class TrueCostCollector extends Thread {
 		Set<Integer> siteIds = st.m_liveSiteIds;
 
 		allHostIds = new int[hostIds.size()];
-		allPartitionIds = new int[siteIds.size()];
+		allPartitionIds = new int[siteIds.size()-hostIds.size()];
 
 		for (Integer siteId : siteIds) {
-			allPartitionIds[i] = st.getPartitionForSite(siteId);
-			++i;
+			consoleLog.info("site is : " + siteId);
+			Site site = st.getSiteForId(siteId);
+			if (site.getIsexec()) {
+				allPartitionIds[i] = st.getPartitionForSite(siteId);
+				++i;
+			}
 		}
 
 		i = 0;
