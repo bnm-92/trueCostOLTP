@@ -152,7 +152,7 @@ public class TrueCostCollector extends Thread {
 			}
 		}
 
-		initializePartitioningGenerator();
+//		initializePartitioningGenerator();
 
 		long epochEnd = System.currentTimeMillis() + EPOCH_LENGTH_MS;
 
@@ -299,6 +299,7 @@ public class TrueCostCollector extends Thread {
 					}
 
 					consoleLog.info("Generating optimum partitioning");
+					initializePartitioningGenerator();
 					optimizedPartitioning = partitioningGenerator.findOptimumPartitioning(workloadSampleStats);
 
 					if (optimizedPartitioning != null) {
