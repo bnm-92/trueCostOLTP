@@ -98,6 +98,38 @@ public class TrueCostCollector extends Thread {
 
 		partitioningGenerator = new PartitioningGenerator(allHostIds, allPartitionIds, MAX_PARTITIONS_PER_HOST);
 	}
+	
+	private String toString(Map<Integer, ArrayList<Integer>> map) {
+		StringBuilder builder = new StringBuilder();
+		
+		if(map != null && map.size() > 0) {
+			int i = 0;
+			for(Entry<Integer, ArrayList<Integer>> entry : map.entrySet()) {
+				if(i > 0) {
+					builder.append("\n");
+				}
+				
+				builder.append(entry.getKey());
+				builder.append(":{");
+				
+				int j = 0;
+				for(Integer n : entry.getValue()) {
+					if(j > 0) {
+						builder.append(",");
+					}
+					builder.append(n);
+					++j;
+				}
+				
+				builder.append("}");
+				++i;
+			}
+		} else {
+			return "(empty)";
+		}
+		
+		return builder.toString();
+	}
 
 	private boolean isLocal(int siteId, int hostId) {
 		SiteTracker st = VoltDB.instance().getCatalogContext().siteTracker;
@@ -263,7 +295,7 @@ public class TrueCostCollector extends Thread {
 
 					consoleLog.info("Generating optimum partitioning");
 					optimizedPartitioning = partitioningGenerator.findOptimumPartitioning(workloadSampleStats);
-					consoleLog.info("Generated optimum partitioning");
+					consoleLog.info("Generated optimum partitioning:\n" + toString(optimizedPartitioning));
 				}
 
 				receivedTxnStats.clear();
