@@ -209,7 +209,7 @@ public class TestRepartitionerAll extends TestCase {
 		sample.addSinglePartitionTransaction("Proc7", 200, 102, getRandom(2, 3));
 		sample.addSinglePartitionTransaction("Proc1", 200, 101, getRandom(2, 3));
 		
-		Map<Integer, ArrayList<Integer>> partitioningMapping = gen.findOptimumPartitioning(sample);
+		Map<Integer, ArrayList<Integer>> partitioningMapping = gen.findOptimumPartitioning(sample).getHostToPartitionsMap();
 		
 		Assert.assertNotNull(partitioningMapping);
 		
@@ -256,7 +256,7 @@ public class TestRepartitionerAll extends TestCase {
 					true);
 		}
 		
-		Map<Integer, ArrayList<Integer>> partitioningMapping = gen.findOptimumPartitioning(sample);
+		Map<Integer, ArrayList<Integer>> partitioningMapping = gen.findOptimumPartitioning(sample).getHostToPartitionsMap();
 		
 		Assert.assertNotNull(partitioningMapping);
 		
