@@ -82,11 +82,13 @@ public class TrueCostCollector extends Thread {
 
 		allHostIds = new int[hostIds.size()];
 		allPartitionIds = new int[siteIds.size() - hostIds.size()];
-
+		
 		for (Integer siteId : siteIds) {
 			Site site = st.getSiteForId(siteId);
 			if (site.getIsexec()) {
-				allPartitionIds[i] = st.getPartitionForSite(siteId);
+				int partition = st.getPartitionForSite(siteId);
+				consoleLog.info("site being given for partitioning is" + siteId + " with partition: " + partition);
+				allPartitionIds[i] = partition;
 				++i;
 			}
 		}
