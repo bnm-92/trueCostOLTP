@@ -317,7 +317,7 @@ public class PartitioningGenerator {
 		constraintNum++;
 
 		// Add the objective function
-		float bestScheduleProbability = TxnScheduleGraph.getBestCaseScheduleProbability(sample);
+		double bestScheduleProbability = TxnScheduleGraph.getBestCaseScheduleProbability(sample);
 
 		constraintLHS = new Linear();
 		constraintLHS.add(bestScheduleProbability, "best");

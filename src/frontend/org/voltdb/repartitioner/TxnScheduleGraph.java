@@ -85,9 +85,8 @@ public class TxnScheduleGraph {
 		public int getLength() {
 			return m_length;
 		}
-		
-		public boolean isEmpty()
-		{
+
+		public boolean isEmpty() {
 			return m_length == 0;
 		}
 	}
@@ -115,27 +114,29 @@ public class TxnScheduleGraph {
 				m_concurrentNodes.put(partition, partitionChain);
 			}
 		}
-		
-		public Collection<NodeChain> getNodeChains()
-		{
+
+		public Collection<NodeChain> getNodeChains() {
 			return m_concurrentNodes.values();
 		}
 	}
 
 	private NodeChain m_nodeChain = new NodeChain();
-	
-	public NodeChain getNodeChain()
-	{
+
+	public NodeChain getNodeChain() {
 		return m_nodeChain;
 	}
-	
-	public static float getBestCaseScheduleProbability(WorkloadSampleStats sample)
-	{
-		if(sample.getSinglePartitionTxnStats().isEmpty() && sample.getMultiPartitionTxnStats().isEmpty()) {
+
+	public static double getBestCaseScheduleProbability(WorkloadSampleStats sample) {
+		if (sample.getSinglePartitionTxnStats().isEmpty() && sample.getMultiPartitionTxnStats().isEmpty()) {
 			return 0;
 		}
-		
-		return (float) sample.getSinglePartitionTxnStats().size() / (float) (sample.getSinglePartitionTxnStats().size() +  sample.getMultiPartitionTxnStats().size());
+
+		return (double) sample.getSinglePartitionTxnStats().size()
+				/ (double) (sample.getSinglePartitionTxnStats().size() + sample.getMultiPartitionTxnStats().size());
+	}
+
+	public long getExecutionTime() {
+		return 0L;
 	}
 
 	/**
@@ -151,7 +152,7 @@ public class TxnScheduleGraph {
 
 		if (!sample.getSinglePartitionTxnStats().isEmpty()) {
 			graph.m_nodeChain.addNode(new ConcurrentNode());
-			
+
 			for (TxnGroupStats groupStats : sample.getSinglePartitionTxnStats()) {
 				((ConcurrentNode) graph.m_nodeChain.getTailNode()).addNode(new SerialNode(groupStats));
 			}
@@ -174,42 +175,39 @@ public class TxnScheduleGraph {
 	 */
 	public static TxnScheduleGraph getWorstCaseSchedule(WorkloadSampleStats sample) {
 		TxnScheduleGraph graph = new TxnScheduleGraph();
-		
+
 		Collections.sort(sample.getSinglePartitionTxnStats());
 		Collections.reverse(sample.getSinglePartitionTxnStats());
 		Collections.sort(sample.getMultiPartitionTxnStats());
 		Collections.reverse(sample.getMultiPartitionTxnStats());
-		
+
 		int i = 0;
 		int numSPTxns = sample.getSinglePartitionTxnStats().size();
 		int j = 0;
 		int numMPTxns = sample.getMultiPartitionTxnStats().size();
-		
-		while(i < numSPTxns && j < numMPTxns)
-		{
+
+		while (i < numSPTxns && j < numMPTxns) {
 			graph.m_nodeChain.addNode(new SerialNode(sample.getSinglePartitionTxnStats().get(i)));
 			graph.m_nodeChain.addNode(new SerialNode(sample.getMultiPartitionTxnStats().get(j)));
 			++i;
 			++j;
 		}
-		
-		if(i < numSPTxns)
-		{
+
+		if (i < numSPTxns) {
 			graph.m_nodeChain.addNode(new ConcurrentNode());
-			
-			while(i < numSPTxns)
-			{
-				((ConcurrentNode) graph.m_nodeChain.getTailNode()).addNode(new SerialNode(sample.getSinglePartitionTxnStats().get(i)));
+
+			while (i < numSPTxns) {
+				((ConcurrentNode) graph.m_nodeChain.getTailNode())
+						.addNode(new SerialNode(sample.getSinglePartitionTxnStats().get(i)));
 				++i;
 			}
 		}
-		
-		while(j < numMPTxns)
-		{
+
+		while (j < numMPTxns) {
 			graph.m_nodeChain.addNode(new SerialNode(sample.getMultiPartitionTxnStats().get(j)));
 			++j;
 		}
-		
+
 		return graph;
 	}
 }
