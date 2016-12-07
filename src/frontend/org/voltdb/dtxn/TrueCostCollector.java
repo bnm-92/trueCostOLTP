@@ -249,6 +249,7 @@ public class TrueCostCollector extends Thread {
 				} else if (outstandingStopAndCopyMsgs > 0) {
 					if(message instanceof StopAndCopyDoneMessage) {
 						--outstandingStopAndCopyMsgs;
+						System.out.println("received message, left: " + outstandingStopAndCopyMsgs);
 						isStoppingAndCopying = outstandingStopAndCopyMsgs > 0;
 						
 						if(!isStoppingAndCopying) {
@@ -364,6 +365,7 @@ public class TrueCostCollector extends Thread {
 					// TODO: Decide if we should repartition or not
 					stopAndCopyRun = new StopAndCopyRun();
 					outstandingStopAndCopyMsgs = stopAndCopyRun.doStopAndCopy(optimizedPartitioning.getHostToPartitionsMap());
+					System.out.println("reinitializing stop and copy but waiting for " + outstandingStopAndCopyMsgs);
 					isStoppingAndCopying = true;
 				}
 

@@ -44,6 +44,7 @@ public class StopAndCopyRun{
 				}
 			}
 		}
+		System.out.println("returning " + count);
 		return count;
 	}
 	
@@ -91,11 +92,18 @@ public class StopAndCopyRun{
 	}
 	
 	void crashSource() {
+		System.out.println("size of commands to crash: " + commands.size() + " " + commands.toString());
 		for (String srcSite : commands) {
 			int sourceSite = Integer.parseInt(srcSite);
 			VoltDB.instance().getFaultDistributor().reportFault
 			(new NodeFailureFault(VoltDB.instance().getCatalogContext().
 				siteTracker.getHostForSite(sourceSite), sourceSite,true));
+			try {
+				Thread.sleep(1000L);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 		}
 	}
 	
