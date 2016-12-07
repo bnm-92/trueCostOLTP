@@ -57,7 +57,12 @@ public class TrueCostCollector extends Thread {
 	 * will repartition if there is any gain.
 	 */
 	private static final int THRESHOLD_EPOCHS_WITHOUT_REPARTITION = 60;
-	
+
+	/**
+	 * Number of epochs to ignore after the collector has just started up.
+	 */
+	private static final int IGNORE_EPOCHS_AFTER_STARTUP = 100;
+
 	/**
 	 * Number of epochs after a repartitioning has just occurred to ignore.
 	 */
@@ -70,7 +75,7 @@ public class TrueCostCollector extends Thread {
 		public void addLocalLatency(long latency) {
 			m_localLatencies.add(latency);
 		}
-		
+
 		public void setLocalLatency(long latency) {
 			m_localLatencies.clear();
 			m_localLatencies.add(latency);
@@ -79,7 +84,7 @@ public class TrueCostCollector extends Thread {
 		public void addRemoteLatency(long latency) {
 			m_remoteLatencies.add(latency);
 		}
-		
+
 		public void setRemoteLatency(long latency) {
 			m_remoteLatencies.clear();
 			m_remoteLatencies.add(latency);
@@ -291,12 +296,13 @@ public class TrueCostCollector extends Thread {
 				consoleLog.info("Transaction group latency stats. Group: " + txnGroupStatsKey + ", Local: "
 						+ txnGroupLatencyStats.getLocalLatency() + "ms, Remote: "
 						+ txnGroupLatencyStats.getRemoteLatency() + "ms");
-			} else if(txnGroupLatencyStats.getRemoteLatency() < txnGroupLatencyStats.getLocalLatency()) {
+			} else if (txnGroupLatencyStats.getRemoteLatency() < txnGroupLatencyStats.getLocalLatency()) {
 				consoleLog.warn("Greater local latency (" + txnGroupLatencyStats.getLocalLatency()
 						+ "ms) than remote latency (" + txnGroupLatencyStats.getRemoteLatency()
 						+ "s) recorded for transaction group " + txnGroupLatencyStatsMapEntry.getKey());
-				
-				// Indicates not a huge difference between local and remote latency
+
+				// Indicates not a huge difference between local and remote
+				// latency
 				txnGroupLatencyStats.setRemoteLatency(txnGroupLatencyStats.getLocalLatency());
 			} else {
 				consoleLog.warn("Could not get local or remote latency for transaction group "
@@ -373,6 +379,14 @@ public class TrueCostCollector extends Thread {
 		int outstandingStopAndCopyMsgs = 0;
 		long epochEnd = System.currentTimeMillis() + EPOCH_LENGTH_MS;
 
+		if (IGNORE_EPOCHS_AFTER_STARTUP > 0) {
+			consoleLog.info("Transaction statistics collector will wait for "
+					+ IGNORE_EPOCHS_AFTER_REPARTITION * EPOCH_LENGTH_MS
+					+ "ms before running repartitioning decision logic");
+
+			m_ignoreEpochs = IGNORE_EPOCHS_AFTER_STARTUP;
+		}
+
 		while (true) {
 			VoltMessage message = m_mailbox.recvBlocking(Math.max(0, System.currentTimeMillis() - epochEnd));
 			long now = System.currentTimeMillis();
@@ -431,8 +445,10 @@ public class TrueCostCollector extends Thread {
 					}
 				} else if (outstandingStopAndCopyMsgs > 0) {
 					if (message instanceof StopAndCopyDoneMessage) {
+						consoleLog.info(
+								"Received stop and copy done message. Messages left: " + outstandingStopAndCopyMsgs);
+
 						--outstandingStopAndCopyMsgs;
-						System.out.println("received message, left: " + outstandingStopAndCopyMsgs);
 						isStoppingAndCopying = outstandingStopAndCopyMsgs > 0;
 
 						if (!isStoppingAndCopying) {
@@ -445,108 +461,116 @@ public class TrueCostCollector extends Thread {
 			}
 
 			if (now >= epochEnd) {
-				if(m_ignoreEpochs == 0) {
+				if (m_ignoreEpochs == 0) {
 					if (m_receivedTxnStats.size() > 0) {
 						consoleLog.info("Received " + m_receivedTxnStats.size() + " transaction stats this epoch");
-	
+
 						populateWorkloadSampleStats();
-	
-						// Find the estimated execution time of the workload sample
+
+						// Find the estimated execution time of the workload
+						// sample
 						// under the current partitioning
 						long estimatedExecTime = TxnScheduleGraph.getEstimatedExecutionTime(m_workloadSampleStats,
 								getCurrentHostToPartititionsMap());
-	
+
 						consoleLog.info("Current partitioning:\n" + toString(getCurrentHostToPartititionsMap()));
 						consoleLog.info("Estimated execution time under current partitioning: " + estimatedExecTime);
-	
+
 						if (m_lastEstimatedExecTimes.size() == LOOK_BACK_EPOCHS) {
 							long estimatedExecTimesMean = getEstimatedExecTimesMean();
 							long estimatedExecTimesStdDev = getEstimatedExecTimesStandardDeviation();
 							boolean shouldRepartition = false;
-	
+
 							consoleLog.info("Mean of last-" + LOOK_BACK_EPOCHS + " estimated execution times: "
 									+ estimatedExecTimesMean);
 							consoleLog.info("Standard Deviation of last-" + LOOK_BACK_EPOCHS
 									+ " estimated execution times: " + estimatedExecTimesStdDev);
-	
+
 							consoleLog.info("Generating optimum partitioning");
 							initializePartitioningGenerator();
 							m_optimizedPartitioning = m_partitioningGenerator
 									.findOptimumPartitioning(m_workloadSampleStats);
-	
+
 							if (m_optimizedPartitioning != null) {
 								consoleLog.info("Generated optimum partitioning:\n"
 										+ toString(m_optimizedPartitioning.getHostToPartitionsMap()));
 								consoleLog.info("Estimated execution time under optimum partitioning: "
 										+ m_optimizedPartitioning.getEstimatedExecTime());
-	
+
 								if (estimatedExecTime > estimatedExecTimesMean + 2 * estimatedExecTimesStdDev) {
-									consoleLog.info("Estimated execution time is worse than 95% of last-" + LOOK_BACK_EPOCHS
-											+ " execution times");
-	
-									// Should repartition if the estimated execution
+									consoleLog.info("Estimated execution time is worse than 95% of last-"
+											+ LOOK_BACK_EPOCHS + " execution times");
+
+									// Should repartition if the estimated
+									// execution
 									// time is worse than 95% of the last epochs
-									// This is an outlier an will not be remembered
+									// This is an outlier an will not be
+									// remembered
 									// in the last-n estimated exec. times
 									shouldRepartition = true;
 								} else {
-									// Bump off the last remember execution time and
+									// Bump off the last remember execution time
+									// and
 									// remember this one
 									m_lastEstimatedExecTimes.removeFirst();
 									m_lastEstimatedExecTimes.addLast(estimatedExecTime);
-	
+
 									if (m_optimizedPartitioning.getEstimatedExecTime() <= estimatedExecTime
 											* (1 - MIN_REPARTITIONING_GAIN_PCT)) {
-										consoleLog.info("Estimated execution time under optimum partitioning is at least "
-												+ (MIN_REPARTITIONING_GAIN_PCT * 100)
-												+ "% less than estimated execution time under current partitioning");
-	
-										// Should repartition if the estimated gain
+										consoleLog
+												.info("Estimated execution time under optimum partitioning is at least "
+														+ (MIN_REPARTITIONING_GAIN_PCT * 100)
+														+ "% less than estimated execution time under current partitioning");
+
+										// Should repartition if the estimated
+										// gain
 										// from
 										// the optimized partitioning exceeds
 										// a minimum percentage of the estimated
 										// execution time on the current
 										// partitioning.
 										shouldRepartition = true;
-									} else if (m_optimizedPartitioning.getEstimatedExecTime() < (double) estimatedExecTime
+									} else if (m_optimizedPartitioning
+											.getEstimatedExecTime() < (double) estimatedExecTime
 											&& m_numEpochsWithoutRepartition >= THRESHOLD_EPOCHS_WITHOUT_REPARTITION) {
 										consoleLog.info(m_numEpochsWithoutRepartition
 												+ " have passed without a repartitioning and there is a potential gain from the optimum partitioning");
-	
+
 										shouldRepartition = true;
 										m_numEpochsWithoutRepartition = 0;
 									} else {
 										m_numEpochsWithoutRepartition++;
 									}
 								}
-	
+
 								if (shouldRepartition) {
 									consoleLog.info("Executing stop and copy repartitioning");
-									
-									 m_stopAndCopyRun = new StopAndCopyRun();
-									 outstandingStopAndCopyMsgs = m_stopAndCopyRun
-									 .doStopAndCopy(m_optimizedPartitioning.getHostToPartitionsMap());
-									 isStoppingAndCopying = true;
-									 
-									 consoleLog.info("Repartitioning decision logic will not execute for another " + IGNORE_EPOCHS_AFTER_REPARTITION * EPOCH_LENGTH_MS + "s");
-									 m_ignoreEpochs = IGNORE_EPOCHS_AFTER_REPARTITION;
+
+									m_stopAndCopyRun = new StopAndCopyRun();
+									outstandingStopAndCopyMsgs = m_stopAndCopyRun
+											.doStopAndCopy(m_optimizedPartitioning.getHostToPartitionsMap());
+									isStoppingAndCopying = true;
+
+									consoleLog.info("Repartitioning decision logic will not execute for another "
+											+ IGNORE_EPOCHS_AFTER_REPARTITION * EPOCH_LENGTH_MS + "ms");
+									m_ignoreEpochs = IGNORE_EPOCHS_AFTER_REPARTITION;
 								}
-	
+
 							} else {
 								consoleLog.warn("Could not generate optimum partitioning!");
 							}
-	
+
 						} else {
 							m_lastEstimatedExecTimes.add(estimatedExecTime);
 						}
 					}
 				} else {
 					consoleLog.info("Did not run repartitioning decision logic this epoch");
-					
+
 					// Epoch ignored
 					m_ignoreEpochs -= 1;
 				}
-				
+
 				m_receivedTxnStats.clear();
 				m_txnGroupLatencyStatsMap.clear();
 				m_workloadSampleStats.clearStats();
