@@ -82,6 +82,7 @@ import org.voltdb.compiler.deploymentfile.DeploymentType;
 import org.voltdb.compiler.deploymentfile.HeartbeatType;
 import org.voltdb.compiler.deploymentfile.UsersType;
 import org.voltdb.dtxn.SimpleDtxnInitiator;
+import org.voltdb.dtxn.SiteTracker;
 import org.voltdb.dtxn.TransactionInitiator;
 import org.voltdb.export.ExportManager;
 import org.voltdb.fault.FaultDistributor;
@@ -586,6 +587,33 @@ public class RealVoltDB implements VoltDBInterface, RestoreAgent.Callback
                 m_restoreAgent.setCatalogContext(m_catalogContext);
                 m_restoreAgent.setInitiator(initiator);
             }
+            
+//            System.out.println("auto fail");
+            
+            if (this.m_myHostId == 0) {
+            	SiteTracker st = VoltDB.instance().getCatalogContext().siteTracker;
+                Site[] sites = st.getAllSites();
+                boolean toggle = false;
+                for (int i=0; i<sites.length; i++) {
+//                	System.out.println(i);
+                	if (sites[i].getIsexec()) {
+//                		System.out.println(Integer.parseInt(sites[i].getTypeName()));
+                		if (toggle) {
+                			toggle = false;
+                			VoltDB.instance().getFaultDistributor().reportFault
+                        	(new NodeFailureFault(VoltDB.instance().getCatalogContext().
+                        			siteTracker.getHostForSite(Integer.parseInt(sites[i].getTypeName()) ),
+                        			Integer.parseInt(sites[i].getTypeName()) ,true));
+                		} else {
+                			toggle = true;
+                		}
+                	}
+                }
+            }
+            
+//        	VoltDB.instance().getFaultDistributor().reportFault
+//        	(new NodeFailureFault(VoltDB.instance().getCatalogContext().
+//        			siteTracker.getHostForSite(sourceSite), sourceSite,true));
             
             m_isServerInitialized = true;
         }
