@@ -259,7 +259,10 @@ public class DtxnInitiatorMailbox implements Mailbox
             final InitiateResponseMessage r = (InitiateResponseMessage) message;
 
             state = m_pendingTxns.get(r.getTxnId());
-
+            if (state == null) {
+            	m_pendingTxns.remove(r.getTxnId());
+            	return;
+            }
             assert(m_siteId == r.getInitiatorSiteId());
 
             // if this is a dummy response, make sure the m_pendingTxns list thinks
