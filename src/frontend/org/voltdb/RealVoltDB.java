@@ -604,6 +604,12 @@ public class RealVoltDB implements VoltDBInterface, RestoreAgent.Callback
                         	(new NodeFailureFault(VoltDB.instance().getCatalogContext().
                         			siteTracker.getHostForSite(Integer.parseInt(sites[i].getTypeName()) ),
                         			Integer.parseInt(sites[i].getTypeName()) ,true));
+                			try {
+								Thread.sleep(1000);
+							} catch (InterruptedException e) {
+								// TODO Auto-generated catch block
+								e.printStackTrace();
+							}
                 		} else {
                 			toggle = true;
                 		}
