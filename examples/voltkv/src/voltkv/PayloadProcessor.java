@@ -24,9 +24,12 @@ package voltkv;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.util.HashSet;
 import java.util.Random;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
+
+import org.voltdb.TheHashinator;
 
 import java.nio.ByteBuffer;
 
@@ -102,11 +105,34 @@ public class PayloadProcessor
         // Get the base key format string used to generate keys
         this.KeyFormat = "K%1$" + String.valueOf(this.KeySize-1) + "s";
     }
-
+    
     public Pair generateForStore()
     {
-        final String key = String.format(this.KeyFormat, this.Rand.nextInt(this.PoolSize));
-        final byte[] rawValue = new byte[this.MinValueSize+this.Rand.nextInt(this.MaxValueSize-this.MinValueSize+1)];
+        HashSet<Integer> hash_0 = new HashSet<Integer>();
+        hash_0.add(0);hash_0.add(1);hash_0.add(2);hash_0.add(3);hash_0.add(4);
+        HashSet<Integer> hash_1 = new HashSet<Integer>();
+        hash_0.add(7);hash_1.add(6);hash_1.add(5);
+		
+        Integer randomIntForSkew = (int)(Math.random() * (8) + 1);
+        String key2;
+        if (randomIntForSkew < 5) {
+        	while (true) {
+        		key2 = String.format(this.KeyFormat, this.Rand.nextInt(this.PoolSize));
+        		if (TheHashinator.hashToPartition(key2, 8) < 5) {
+        			break;
+        		}
+        	}
+        } else {
+        	while (true) {
+        		key2 = String.format(this.KeyFormat, this.Rand.nextInt(this.PoolSize));
+        		if (TheHashinator.hashToPartition(key2, 8) >= 5) {
+        			break;
+        		}
+        	}
+        }
+        final String key = key2;
+        
+    	final byte[] rawValue = new byte[this.MinValueSize+this.Rand.nextInt(this.MaxValueSize-this.MinValueSize+1)];
         if (entropyBytes.remaining() > rawValue.length){
             entropyBytes.get(rawValue);
         } else {
