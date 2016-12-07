@@ -112,6 +112,16 @@ public class DtxnInitiatorMailbox implements Mailbox
      * Latency distribution, stored in buckets.
      */
     final LatencyStats m_latencies;
+    
+    /**
+     * Every how many transactions to sample for statistics.
+     */
+    private long TXN_SAMPLE_FREQUENCY = 100;
+    
+    /**
+     * Counter for sampling transactions for statistics.
+     */
+    private long m_txnStatsSamplerCount;
 
     /**
      * Construct a new DtxnInitiatorQueue
@@ -191,26 +201,25 @@ public class DtxnInitiatorMailbox implements Mailbox
         final int delta = (int)(now - state.initiateTime);
         response.setClusterRoundtrip(delta);
         
-        try {
-        	Long  m_txnId = state.txnId;
-        	TrueCostTransactionStats ts = new TrueCostTransactionStats(m_txnId);
-        	ts.setProcedureName(state.invocation.getProcName());
-        	if (state.isSinglePartition) {
-        		ts.setIsSinglePartition(true, VoltDB.instance().getCatalogContext().siteTracker.getPartitionForSite(state.firstCoordinatorId));
-        	}
-        	else {
-        		ts.setIsSinglePartition(false, -1);
-        	}
-        	ts.setCoordinatorSiteId(state.firstCoordinatorId);
-        	ts.setInitiatorSiteId(this.m_siteId);
-        	ts.setInitiatorHostId(this.m_hostMessenger.getHostId());
-        	ts.setLatency(delta);
-        	((SimpleDtxnInitiator)this.m_initiator).addTransactionStat(ts);
-//        	System.out.println(((SimpleDtxnInitiator)this.m_initiator).stats.size());
-//        	System.out.println(ts.toString());
-        	
-        }catch (Exception e) {
-        	e.printStackTrace();
+        if((m_txnStatsSamplerCount = (m_txnStatsSamplerCount + 1) % TXN_SAMPLE_FREQUENCY) == 0) {
+			try {
+				Long m_txnId = state.txnId;
+				TrueCostTransactionStats ts = new TrueCostTransactionStats(m_txnId);
+				ts.setProcedureName(state.invocation.getProcName());
+				if (state.isSinglePartition) {
+					ts.setIsSinglePartition(true, VoltDB.instance().getCatalogContext().siteTracker
+							.getPartitionForSite(state.firstCoordinatorId));
+				} else {
+					ts.setIsSinglePartition(false, -1);
+				}
+				ts.setCoordinatorSiteId(state.firstCoordinatorId);
+				ts.setInitiatorSiteId(this.m_siteId);
+				ts.setInitiatorHostId(this.m_hostMessenger.getHostId());
+				ts.setLatency(delta);
+				((SimpleDtxnInitiator) this.m_initiator).addTransactionStat(ts);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
         }
                 
         m_stats.logTransactionCompleted(
