@@ -161,6 +161,8 @@ public abstract class VoltSystemProcedure extends VoltProcedure {
         } else {
         	if (matchingTablesForId.size() > 0)
         		results[0] = matchingTablesForId.get(0);
+        	else 
+        		results[0] = null;
         }
 
         return results;
