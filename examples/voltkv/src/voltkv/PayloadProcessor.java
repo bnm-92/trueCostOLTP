@@ -109,23 +109,25 @@ public class PayloadProcessor
     public Pair generateForStore()
     {
         HashSet<Integer> hash_0 = new HashSet<Integer>();
-        hash_0.add(0);hash_0.add(1);hash_0.add(2);hash_0.add(3);hash_0.add(4);
+        hash_0.add(0);hash_0.add(4);hash_0.add(6);
         HashSet<Integer> hash_1 = new HashSet<Integer>();
-        hash_0.add(7);hash_1.add(6);hash_1.add(5);
+        hash_1.add(1);hash_1.add(3);hash_1.add(5);hash_1.add(7);hash_1.add(2);
 		
         Integer randomIntForSkew = (int)(Math.random() * (8) + 1);
         String key2;
         if (randomIntForSkew < 0) {
         	while (true) {
         		key2 = String.format(this.KeyFormat, this.Rand.nextInt(this.PoolSize));
-        		if (TheHashinator.hashToPartition(key2, 8) < 5) {
+        		int partition = TheHashinator.hashToPartition(key2, 8);
+        		if (hash_0.contains(partition)) {
         			break;
         		}
         	}
         } else {
         	while (true) {
         		key2 = String.format(this.KeyFormat, this.Rand.nextInt(this.PoolSize));
-        		if (TheHashinator.hashToPartition(key2, 8) >= 4) {
+        		int partition = TheHashinator.hashToPartition(key2, 8);
+        		if (hash_1.contains(partition)) {
         			break;
         		}
         	}
