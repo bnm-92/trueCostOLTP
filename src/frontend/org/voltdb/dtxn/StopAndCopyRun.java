@@ -103,7 +103,7 @@ public class StopAndCopyRun{
         try {
         	Client client = ClientFactory.createClient();
     		client.createConnection("localhost");
-    		Object[] params = {srcSite, srcHost, destSite, destHost};
+    		Object[] params = { srcHost,srcSite, destHost, destSite };
     		ClientResponse rsp = client.callProcedure("@StopAndCopy", params);
     		VoltTable[] vt = rsp.getResults();
     		client.close();
