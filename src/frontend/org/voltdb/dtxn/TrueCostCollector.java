@@ -214,7 +214,7 @@ public class TrueCostCollector extends Thread {
 			ArrayList<Integer> partitionsForMap = new ArrayList<Integer>();
 			for (Integer site : sites) {
 				Site curSite = st.getSiteForId(site);
-				if (curSite.getIsexec()) {
+				if (curSite.getIsexec() && curSite.getIsup()) {
 					partitionsForMap.add(st.getPartitionForSite(site));
 				}
 			}
