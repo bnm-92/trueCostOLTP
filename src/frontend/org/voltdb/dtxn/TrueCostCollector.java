@@ -393,11 +393,11 @@ public class TrueCostCollector extends Thread {
 					}
 
 					// TODO: Decide if we should repartition or not
-//					m_stopAndCopyRun = new StopAndCopyRun();
-//					outstandingStopAndCopyMsgs = m_stopAndCopyRun
-//							.doStopAndCopy(m_optimizedPartitioning.getHostToPartitionsMap());
-//					System.out.println("reinitializing stop and copy but waiting for " + outstandingStopAndCopyMsgs);
-//					isStoppingAndCopying = true;
+					m_stopAndCopyRun = new StopAndCopyRun();
+					outstandingStopAndCopyMsgs = m_stopAndCopyRun
+							.doStopAndCopy(m_optimizedPartitioning.getHostToPartitionsMap());
+					System.out.println("reinitializing stop and copy but waiting for " + outstandingStopAndCopyMsgs);
+					isStoppingAndCopying = true;
 				}
 
 				m_receivedTxnStats.clear();
