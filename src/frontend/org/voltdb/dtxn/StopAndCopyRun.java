@@ -19,7 +19,7 @@ public class StopAndCopyRun{
 	
 	public int doStopAndCopy(Map<Integer, ArrayList<Integer>> hm) {
 		this.st = VoltDB.instance().getCatalogContext().siteTracker;
-		ArrayList<String> commands = new ArrayList<String>();
+		this.commands = new ArrayList<String>();
 		Iterator it = hm.entrySet().iterator();
 		int count = 0;
 		while (it.hasNext()) {
