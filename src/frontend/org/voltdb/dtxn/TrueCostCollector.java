@@ -43,14 +43,14 @@ public class TrueCostCollector extends Thread {
 	 * sampled transactions on the current partition. Used to determine whether
 	 * to repartition. Store the last N estimated execution times.
 	 */
-	private static final int LOOK_BACK_EPOCHS = 40;
+	private static final int LOOK_BACK_EPOCHS = 50;
 
 	/**
 	 * Minimum improvement percentage in estimated execution time on the optimum
 	 * partitioning vs. the current partitioning in order to decide to
 	 * repartition.
 	 */
-	private static final double MIN_REPARTITIONING_GAIN_PCT = 0.05f;
+	private static final double MIN_REPARTITIONING_GAIN_PCT = 0.20f;
 
 	/**
 	 * If this number of epochs have passed without a repartitioning, then we
@@ -61,7 +61,7 @@ public class TrueCostCollector extends Thread {
 	/**
 	 * Number of epochs after a repartitioning has just occurred to ignore.
 	 */
-	private static final int IGNORE_EPOCHS_AFTER_REPARTITION = 5;
+	private static final int IGNORE_EPOCHS_AFTER_REPARTITION = 40;
 
 	private static class TxnGroupLatencyStats {
 		private StatsList m_localLatencies = new StatsList();
