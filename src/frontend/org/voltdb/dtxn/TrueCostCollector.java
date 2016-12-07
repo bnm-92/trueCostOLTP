@@ -8,6 +8,7 @@ import java.util.Set;
 
 import org.voltdb.VoltDB;
 import org.voltdb.catalog.Site;
+import org.voltdb.fault.NodeFailureFault;
 import org.voltdb.logging.VoltLogger;
 import org.voltdb.messaging.SiteMailbox;
 import org.voltdb.messaging.StopAndCopyDoneMessage;
@@ -153,6 +154,29 @@ public class TrueCostCollector extends Thread {
 				// Swallow
 			}
 		}
+		
+//      System.out.println("auto fail");
+        
+      	SiteTracker st = VoltDB.instance().getCatalogContext().siteTracker;
+          Site[] sites = st.getAllSites();
+          boolean toggle = false;
+          for (int i=0; i<sites.length; i++) {
+//          	System.out.println(i);
+          	if (sites[i].getIsexec()) {
+//          		System.out.println(Integer.parseInt(sites[i].getTypeName()));
+          		if (toggle) {
+          			toggle = false;
+          			VoltDB.instance().getFaultDistributor().reportFault
+                  	(new NodeFailureFault(VoltDB.instance().getCatalogContext().
+                  			siteTracker.getHostForSite(Integer.parseInt(sites[i].getTypeName()) ),
+                  			Integer.parseInt(sites[i].getTypeName()) ,true));
+          			
+          		} else {
+          			toggle = true;
+          		}
+          	}
+          }
+      
 
 		initializePartitioningGenerator();
 
