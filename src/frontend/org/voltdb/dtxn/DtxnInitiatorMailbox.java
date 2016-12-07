@@ -276,7 +276,10 @@ public class DtxnInitiatorMailbox implements Mailbox
             	}
             }
 
-            if (state.hasAllResponses()) {
+            if (state == null) {
+            	
+            }
+            else if (state.hasAllResponses()) {
                 m_initiator.reduceBackpressure(state.messageSize);
                 m_pendingTxns.remove(r.getTxnId());
 
