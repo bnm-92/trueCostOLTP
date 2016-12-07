@@ -43,7 +43,7 @@ public class TrueCostCollector extends Thread {
 	 * sampled transactions on the current partition. Used to determine whether
 	 * to repartition. Store the last N estimated execution times.
 	 */
-	private static final int LOOK_BACK_EPOCHS = 50;
+	private static final int LOOK_BACK_EPOCHS = 30;
 
 	/**
 	 * Minimum improvement percentage in estimated execution time on the optimum
@@ -61,7 +61,7 @@ public class TrueCostCollector extends Thread {
 	/**
 	 * Number of epochs to ignore after the collector has just started up.
 	 */
-	private static final int IGNORE_EPOCHS_AFTER_STARTUP = 100;
+	private static final int IGNORE_EPOCHS_AFTER_STARTUP = 20;
 
 	/**
 	 * Number of epochs after a repartitioning has just occurred to ignore.
