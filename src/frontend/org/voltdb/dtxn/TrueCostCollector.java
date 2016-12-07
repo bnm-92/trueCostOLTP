@@ -85,7 +85,7 @@ public class TrueCostCollector extends Thread {
 
 		allHostIds = new int[hostIds.size()];
 		allPartitionIds = new int[siteIds.size() - hostIds.size()];
-		
+
 		for (Integer siteId : siteIds) {
 			Site site = st.getSiteForId(siteId);
 			if (site.getIsexec()) {
@@ -144,9 +144,9 @@ public class TrueCostCollector extends Thread {
 		}
 		return false;
 	}
-	
+
 	HashMap<Integer, ArrayList<Integer>> getCurrentMapping() {
-		HashMap <Integer, ArrayList<Integer>> hm = new HashMap <Integer, ArrayList<Integer>>();
+		HashMap<Integer, ArrayList<Integer>> hm = new HashMap<Integer, ArrayList<Integer>>();
 		SiteTracker st = VoltDB.instance().getCatalogContext().siteTracker;
 		Set<Integer> hosts = st.getAllLiveHosts();
 		for (Integer host : hosts) {
@@ -162,7 +162,7 @@ public class TrueCostCollector extends Thread {
 		}
 		return hm;
 	}
-	
+
 	public void run() {
 		while (!VoltDB.instance().isServerInitialized()) {
 			consoleLog.info("Transaction statistics collector waiting for VoltDB to start");
@@ -172,36 +172,36 @@ public class TrueCostCollector extends Thread {
 				// Swallow
 			}
 		}
-		
-//      System.out.println("auto fail");
-        
-      	SiteTracker st = VoltDB.instance().getCatalogContext().siteTracker;
-          Site[] sites = st.getAllSites();
-          boolean toggle = false;
-          for (int i=0; i<sites.length; i++) {
-//          	System.out.println(i);
-          	if (sites[i].getIsexec()) {
-//          		System.out.println(Integer.parseInt(sites[i].getTypeName()));
-          		if (toggle) {
-          			toggle = false;
-          			VoltDB.instance().getFaultDistributor().reportFault
-                  	(new NodeFailureFault(VoltDB.instance().getCatalogContext().
-                  			siteTracker.getHostForSite(Integer.parseInt(sites[i].getTypeName()) ),
-                  			Integer.parseInt(sites[i].getTypeName()) ,true));
-          			
-          			try {
+
+		// System.out.println("auto fail");
+
+		SiteTracker st = VoltDB.instance().getCatalogContext().siteTracker;
+		Site[] sites = st.getAllSites();
+		boolean toggle = false;
+		for (int i = 0; i < sites.length; i++) {
+			// System.out.println(i);
+			if (sites[i].getIsexec()) {
+				// System.out.println(Integer.parseInt(sites[i].getTypeName()));
+				if (toggle) {
+					toggle = false;
+					VoltDB.instance().getFaultDistributor()
+							.reportFault(new NodeFailureFault(
+									VoltDB.instance().getCatalogContext().siteTracker
+											.getHostForSite(Integer.parseInt(sites[i].getTypeName())),
+									Integer.parseInt(sites[i].getTypeName()), true));
+
+					try {
 						Thread.sleep(2000L);
 					} catch (InterruptedException e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
 					}
-          			
-          		} else {
-          			toggle = true;
-          		}
-          	}
-          }
-      
+
+				} else {
+					toggle = true;
+				}
+			}
+		}
 
 		initializePartitioningGenerator();
 
@@ -265,12 +265,12 @@ public class TrueCostCollector extends Thread {
 						}
 					}
 				} else if (outstandingStopAndCopyMsgs > 0) {
-					if(message instanceof StopAndCopyDoneMessage) {
+					if (message instanceof StopAndCopyDoneMessage) {
 						--outstandingStopAndCopyMsgs;
 						System.out.println("received message, left: " + outstandingStopAndCopyMsgs);
 						isStoppingAndCopying = outstandingStopAndCopyMsgs > 0;
-						
-						if(!isStoppingAndCopying) {
+
+						if (!isStoppingAndCopying) {
 							stopAndCopyRun.crashSource();
 						}
 					}
@@ -379,10 +379,11 @@ public class TrueCostCollector extends Thread {
 					} else {
 						consoleLog.warn("Could not generate optimum partitioning!");
 					}
-					
+
 					// TODO: Decide if we should repartition or not
 					stopAndCopyRun = new StopAndCopyRun();
-					outstandingStopAndCopyMsgs = stopAndCopyRun.doStopAndCopy(optimizedPartitioning.getHostToPartitionsMap());
+					outstandingStopAndCopyMsgs = stopAndCopyRun
+							.doStopAndCopy(optimizedPartitioning.getHostToPartitionsMap());
 					System.out.println("reinitializing stop and copy but waiting for " + outstandingStopAndCopyMsgs);
 					isStoppingAndCopying = true;
 				}
