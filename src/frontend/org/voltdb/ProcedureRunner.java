@@ -823,8 +823,9 @@ public class ProcedureRunner {
            VoltTable[] retval = (VoltTable[]) result;
            for (VoltTable table : retval)
                if (table == null) {
-                   Exception e = new RuntimeException("VoltTable arrays with non-zero length cannot contain null values.");
-                   throw new InvocationTargetException(e);
+            	   table = new VoltTable();
+//                   Exception e = new RuntimeException("VoltTable arrays with non-zero length cannot contain null values.");
+//                   throw new InvocationTargetException(e);
                }
 
            return retval;
