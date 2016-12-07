@@ -36,6 +36,12 @@ public class StopAndCopyRun{
 					System.out.println("starting stop and copy for : " + 
 							srcSite + " " + srcHost + " " + destSite + " " + destHost);
 					stopAndCopy(srcSite, srcHost, destSite, destHost);
+					try {
+						Thread.sleep(1000L);
+					} catch (InterruptedException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
 					System.out.println("stop and copy done for : " + 
 							srcSite + " " + srcHost + " " + destSite + " " + destHost);
 					commands.add(srcSite);
