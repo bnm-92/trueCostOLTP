@@ -144,7 +144,25 @@ public class TrueCostCollector extends Thread {
 		}
 		return false;
 	}
-
+	
+	HashMap<Integer, ArrayList<Integer>> getCurrentMapping() {
+		HashMap <Integer, ArrayList<Integer>> hm = new HashMap <Integer, ArrayList<Integer>>();
+		SiteTracker st = VoltDB.instance().getCatalogContext().siteTracker;
+		Set<Integer> hosts = st.getAllLiveHosts();
+		for (Integer host : hosts) {
+			ArrayList<Integer> sites = st.getAllSitesForHost(host);
+			ArrayList<Integer> partitionsForMap = new ArrayList<Integer>();
+			for (Integer site : sites) {
+				Site curSite = st.getSiteForId(site);
+				if (curSite.getIsexec()) {
+					partitionsForMap.add(st.getPartitionForSite(site));
+				}
+			}
+			hm.put(host, partitionsForMap);
+		}
+		return hm;
+	}
+	
 	public void run() {
 		while (!VoltDB.instance().isServerInitialized()) {
 			consoleLog.info("Transaction statistics collector waiting for VoltDB to start");
