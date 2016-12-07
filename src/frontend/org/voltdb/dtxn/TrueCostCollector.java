@@ -50,13 +50,13 @@ public class TrueCostCollector extends Thread {
 	 * partitioning vs. the current partitioning in order to decide to
 	 * repartition.
 	 */
-	private static final double MIN_REPARTITIONING_GAIN_PCT = 0.075f;
+	private static final double MIN_REPARTITIONING_GAIN_PCT = 0.20f;
 
 	/**
 	 * If this number of epochs have passed without a repartitioning, then we
 	 * will repartition if there is any gain.
 	 */
-	private static final int THRESHOLD_EPOCHS_WITHOUT_REPARTITION = 20;
+	private static final int THRESHOLD_EPOCHS_WITHOUT_REPARTITION = 60;
 
 	private static class TxnGroupLatencyStats {
 		private StatsList m_localLatencies = new StatsList();
