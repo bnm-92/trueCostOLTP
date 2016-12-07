@@ -270,7 +270,7 @@ public class DtxnInitiatorMailbox implements Mailbox
             // otherwise update the InFlightTxnState with the response
             else {
             	if (state == null) {
-                    toSend = state.addFailedOrRecoveringResponse(r.getCoordinatorSiteId());
+//            		m_pendingTxns.remove(r.getTxnId());
             	} else {
             		toSend = state.addResponse(r.getCoordinatorSiteId(), r.getClientResponseData());
             	}
