@@ -2,6 +2,7 @@ package org.voltdb.dtxn;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -18,6 +19,7 @@ import org.voltdb.repartitioner.PartitioningGenerator;
 import org.voltdb.repartitioner.PartitioningGeneratorResult;
 import org.voltdb.repartitioner.StatsList;
 import org.voltdb.repartitioner.TxnGroupStatsKey;
+import org.voltdb.repartitioner.TxnScheduleGraph;
 import org.voltdb.repartitioner.WorkloadSampleStats;
 
 public class TrueCostCollector extends Thread {
@@ -25,24 +27,37 @@ public class TrueCostCollector extends Thread {
 	private static final VoltLogger consoleLog = new VoltLogger("CONSOLE");
 
 	/**
-	 * Decide at the end of each epoch whether to repartition.
-	 * Length of the epoch.
+	 * Decide at the end of each epoch whether to repartition. Length of the
+	 * epoch.
 	 */
 	private static final int EPOCH_LENGTH_MS = 1000;
 
 	/**
-	 * Maximum number of partitions per host.
-	 * TODO: Retrieve this via configuration.
+	 * Maximum number of partitions per host. TODO: Retrieve this via
+	 * configuration.
 	 */
 	private static final int MAX_PARTITIONS_PER_HOST = 5;
-	
+
 	/**
-	 * At the end of each epoch we determine the estimated execution time of the sampled transactions
-	 * on the current partition. Used to determine whether to repartition.
-	 * Store the last N estimated execution times.
+	 * At the end of each epoch we determine the estimated execution time of the
+	 * sampled transactions on the current partition. Used to determine whether
+	 * to repartition. Store the last N estimated execution times.
 	 */
 	private static final int LOOK_BACK_EPOCHS = 60;
-	
+
+	/**
+	 * Minimum improvement percentage in estimated execution time on the optimum
+	 * partitioning vs. the current partitioning in order to decide to
+	 * repartition.
+	 */
+	private static final double MIN_REPARTITIONING_GAIN_PCT = 0.20f;
+
+	/**
+	 * If this number of epochs have passed without a repartitioning, then we
+	 * will repartition if there is any gain.
+	 */
+	private static final int THRESHOLD_EPOCHS_WITHOUT_REPARTITION = 30;
+
 	private static class TxnGroupLatencyStats {
 		private StatsList m_localLatencies = new StatsList();
 		private StatsList m_remoteLatencies = new StatsList();
@@ -78,12 +93,46 @@ public class TrueCostCollector extends Thread {
 	private PartitioningGenerator m_partitioningGenerator;
 	private PartitioningGeneratorResult m_optimizedPartitioning;
 	private StopAndCopyRun m_stopAndCopyRun;
+	private LinkedList<Long> m_lastEstimatedExecTimes = new LinkedList<Long>();
+	private int m_numEpochsWithoutRepartition;
 
 	TrueCostCollector() {
 		setDaemon(true);
 
-		m_mailbox = (SiteMailbox) VoltDB.instance().getMessenger().createMailbox(0, VoltDB.COLLECTOR_MAILBOX_ID,
-				false);
+		m_mailbox = (SiteMailbox) VoltDB.instance().getMessenger().createMailbox(0, VoltDB.COLLECTOR_MAILBOX_ID, false);
+	}
+
+	private long getEstimatedExecTimesMean() {
+		long total = 0L;
+		int n = m_lastEstimatedExecTimes.size();
+
+		if (n > 0) {
+			for (Long execTime : m_lastEstimatedExecTimes) {
+				total += execTime;
+			}
+
+			return Math.round((double) total / n);
+		}
+
+		return 0L;
+	}
+
+	private long getEstimatedExecTimesStandardDeviation() {
+		long total = 0L;
+		int n = m_lastEstimatedExecTimes.size();
+
+		if (n > 2) {
+			long meanExecTime = getEstimatedExecTimesMean();
+
+			for (Long execTime : m_lastEstimatedExecTimes) {
+				long factor = meanExecTime - execTime;
+				total += factor * factor;
+			}
+
+			return Math.round(Math.sqrt((double) total / (n - 1)));
+		}
+
+		return 0L;
 	}
 
 	private void initializePartitioningGenerator() {
@@ -100,7 +149,8 @@ public class TrueCostCollector extends Thread {
 			Site site = st.getSiteForId(siteId);
 			if (site.getIsexec()) {
 				int partition = st.getPartitionForSite(siteId);
-				consoleLog.info("site being given for partitioning is" + siteId + " with partition: " + partition);
+				// consoleLog.info("site being given for partitioning is" +
+				// siteId + " with partition: " + partition);
 				m_allPartitionIds[i] = partition;
 				++i;
 			}
@@ -172,7 +222,7 @@ public class TrueCostCollector extends Thread {
 		}
 		return hm;
 	}
-	
+
 	private void initializeCrashedSites() {
 		SiteTracker st = VoltDB.instance().getCatalogContext().siteTracker;
 		Site[] sites = st.getAllSites();
@@ -198,6 +248,86 @@ public class TrueCostCollector extends Thread {
 
 				} else {
 					toggle = true;
+				}
+			}
+		}
+	}
+
+	private void populateWorkloadSampleStats() {
+		for (Entry<TxnGroupStatsKey, TxnGroupLatencyStats> txnGroupLatencyStatsMapEntry : m_txnGroupLatencyStatsMap
+				.entrySet()) {
+			TxnGroupStatsKey txnGroupStatsKey = txnGroupLatencyStatsMapEntry.getKey();
+			TxnGroupLatencyStats txnGroupLatencyStats = txnGroupLatencyStatsMapEntry.getValue();
+
+			if (txnGroupLatencyStats.getLocalLatency() > 0 || txnGroupLatencyStats.getRemoteLatency() > 0) {
+				if (txnGroupLatencyStats.getLocalLatency() == 0) {
+					// Estimate the local latency to be 50% of the
+					// remote latency
+					long localLatency = Math.max(1,
+							Math.round((double) txnGroupLatencyStats.getRemoteLatency() * 0.50));
+					txnGroupLatencyStats.addLocalLatency(localLatency);
+				} else if (txnGroupLatencyStats.getRemoteLatency() == 0) {
+					// Estimate the remote latency to be 2x the
+					// local latency
+					txnGroupLatencyStats.addRemoteLatency(txnGroupLatencyStats.getLocalLatency() * 2);
+				}
+
+				consoleLog.info("Transaction group latency stats. Group: " + txnGroupStatsKey + ", Local: "
+						+ txnGroupLatencyStats.getLocalLatency() + "ms, Remote: "
+						+ txnGroupLatencyStats.getRemoteLatency() + "ms");
+			} else {
+				consoleLog.warn("Could not get local or remote latency for transaction group "
+						+ txnGroupLatencyStatsMapEntry.getKey());
+			}
+		}
+
+		for (TrueCostTransactionStats txnStats : m_receivedTxnStats) {
+			TxnGroupLatencyStats txnGroupLatencyStats = null;
+			long localLatency = 0L;
+			long remoteLatency = 0L;
+
+			if (txnStats.isSinglePartition()) {
+				m_txnGroupStatsKey.reset(txnStats.getProcedureName(), txnStats.getInitiatorHostId(), 0);
+				txnGroupLatencyStats = m_txnGroupLatencyStatsMap.get(m_txnGroupStatsKey);
+
+				if (txnGroupLatencyStats != null) {
+					localLatency = txnGroupLatencyStats.getLocalLatency();
+					remoteLatency = txnGroupLatencyStats.getRemoteLatency();
+
+					if (localLatency > 0 && remoteLatency > 0) {
+						m_workloadSampleStats.addSinglePartitionTransaction(txnStats.getProcedureName(),
+								txnStats.getInitiatorHostId(), txnStats.getPartition(), localLatency + remoteLatency);
+						m_workloadSampleStats.recordSinglePartitionTransactionRemotePartitionNetworkLatency(
+								txnStats.getProcedureName(), txnStats.getInitiatorHostId(), txnStats.getPartition(),
+								remoteLatency, true);
+					} else {
+						consoleLog.warn("Could not get local and remote latency stats for transaction " + txnStats);
+					}
+				} else {
+					consoleLog.warn("Could not get transaction group latency stats for transaction " + txnStats);
+				}
+			} else {
+				m_txnGroupStatsKey.reset(txnStats.getProcedureName(), txnStats.getInitiatorHostId());
+				txnGroupLatencyStats = m_txnGroupLatencyStatsMap.get(m_txnGroupStatsKey);
+
+				if (txnGroupLatencyStats != null) {
+					localLatency = txnGroupLatencyStats.getLocalLatency();
+					remoteLatency = txnGroupLatencyStats.getRemoteLatency();
+
+					if (localLatency > 0 && remoteLatency > 0) {
+						m_workloadSampleStats.addMultiPartitionTransaction(txnStats.getProcedureName(),
+								txnStats.getInitiatorHostId(), localLatency + remoteLatency);
+
+						for (int partition : m_allPartitionIds) {
+							m_workloadSampleStats.recordMultiPartitionTransactionRemotePartitionNetworkLatency(
+									txnStats.getProcedureName(), txnStats.getInitiatorHostId(), partition,
+									remoteLatency, true);
+						}
+					} else {
+						consoleLog.warn("Could not get local and remote latency stats for transaction " + txnStats);
+					}
+				} else {
+					consoleLog.warn("Could not get transaction group latency stats for transaction " + txnStats);
 				}
 			}
 		}
@@ -247,7 +377,8 @@ public class TrueCostCollector extends Thread {
 								m_txnGroupStatsKey.reset(txnStats.getProcedureName(), txnStats.getInitiatorHostId());
 							}
 
-							TxnGroupLatencyStats txnGroupLatencyStats = m_txnGroupLatencyStatsMap.get(m_txnGroupStatsKey);
+							TxnGroupLatencyStats txnGroupLatencyStats = m_txnGroupLatencyStatsMap
+									.get(m_txnGroupStatsKey);
 							if (txnGroupLatencyStats == null) {
 								txnGroupLatencyStats = new TxnGroupLatencyStats();
 								m_txnGroupLatencyStatsMap.put(m_txnGroupStatsKey.clone(), txnGroupLatencyStats);
@@ -294,110 +425,93 @@ public class TrueCostCollector extends Thread {
 				if (m_receivedTxnStats.size() > 0) {
 					consoleLog.info("Received " + m_receivedTxnStats.size() + " transaction stats this epoch");
 
-					for (Entry<TxnGroupStatsKey, TxnGroupLatencyStats> txnGroupLatencyStatsMapEntry : m_txnGroupLatencyStatsMap
-							.entrySet()) {
-						TxnGroupStatsKey txnGroupStatsKey = txnGroupLatencyStatsMapEntry.getKey();
-						TxnGroupLatencyStats txnGroupLatencyStats = txnGroupLatencyStatsMapEntry.getValue();
+					populateWorkloadSampleStats();
 
-						if (txnGroupLatencyStats.getLocalLatency() > 0 || txnGroupLatencyStats.getRemoteLatency() > 0) {
-							if (txnGroupLatencyStats.getLocalLatency() == 0) {
-								// Estimate the local latency to be 50% of the
-								// remote latency
-								long localLatency = Math.max(1,
-										Math.round((double) txnGroupLatencyStats.getRemoteLatency() * 0.50));
-								txnGroupLatencyStats.addLocalLatency(localLatency);
-							} else if (txnGroupLatencyStats.getRemoteLatency() == 0) {
-								// Estimate the remote latency to be 2x the
-								// local latency
-								txnGroupLatencyStats.addRemoteLatency(txnGroupLatencyStats.getLocalLatency() * 2);
-							}
-
-							consoleLog.info("Transaction group latency stats. Group: " + txnGroupStatsKey + ", Local: "
-									+ txnGroupLatencyStats.getLocalLatency() + "ms, Remote: "
-									+ txnGroupLatencyStats.getRemoteLatency() + "ms");
-						} else {
-							consoleLog.warn("Could not get local or remote latency for transaction group "
-									+ txnGroupLatencyStatsMapEntry.getKey());
-						}
-					}
-
-					for (TrueCostTransactionStats txnStats : m_receivedTxnStats) {
-						TxnGroupLatencyStats txnGroupLatencyStats = null;
-						long localLatency = 0L;
-						long remoteLatency = 0L;
-
-						if (txnStats.isSinglePartition()) {
-							m_txnGroupStatsKey.reset(txnStats.getProcedureName(), txnStats.getInitiatorHostId(), 0);
-							txnGroupLatencyStats = m_txnGroupLatencyStatsMap.get(m_txnGroupStatsKey);
-
-							if (txnGroupLatencyStats != null) {
-								localLatency = txnGroupLatencyStats.getLocalLatency();
-								remoteLatency = txnGroupLatencyStats.getRemoteLatency();
-
-								if (localLatency > 0 && remoteLatency > 0) {
-									m_workloadSampleStats.addSinglePartitionTransaction(txnStats.getProcedureName(),
-											txnStats.getInitiatorHostId(), txnStats.getPartition(),
-											localLatency + remoteLatency);
-									m_workloadSampleStats.recordSinglePartitionTransactionRemotePartitionNetworkLatency(
-											txnStats.getProcedureName(), txnStats.getInitiatorHostId(),
-											txnStats.getPartition(), remoteLatency, true);
-								} else {
-									consoleLog.warn(
-											"Could not get local and remote latency stats for transaction " + txnStats);
-								}
-							} else {
-								consoleLog.warn(
-										"Could not get transaction group latency stats for transaction " + txnStats);
-							}
-						} else {
-							m_txnGroupStatsKey.reset(txnStats.getProcedureName(), txnStats.getInitiatorHostId());
-							txnGroupLatencyStats = m_txnGroupLatencyStatsMap.get(m_txnGroupStatsKey);
-
-							if (txnGroupLatencyStats != null) {
-								localLatency = txnGroupLatencyStats.getLocalLatency();
-								remoteLatency = txnGroupLatencyStats.getRemoteLatency();
-
-								if (localLatency > 0 && remoteLatency > 0) {
-									m_workloadSampleStats.addMultiPartitionTransaction(txnStats.getProcedureName(),
-											txnStats.getInitiatorHostId(), localLatency + remoteLatency);
-
-									for (int partition : m_allPartitionIds) {
-										m_workloadSampleStats
-												.recordMultiPartitionTransactionRemotePartitionNetworkLatency(
-														txnStats.getProcedureName(), txnStats.getInitiatorHostId(),
-														partition, remoteLatency, true);
-									}
-								} else {
-									consoleLog.warn(
-											"Could not get local and remote latency stats for transaction " + txnStats);
-								}
-							} else {
-								consoleLog.warn(
-										"Could not get transaction group latency stats for transaction " + txnStats);
-							}
-						}
-					}
+					// Find the estimated execution time of the workload sample
+					// under the current partitioning
+					long estimatedExecTime = TxnScheduleGraph.getEstimatedExecutionTime(m_workloadSampleStats,
+							getCurrentHostToPartititionsMap());
 
 					consoleLog.info("Current partitioning:\n" + toString(getCurrentHostToPartititionsMap()));
-					consoleLog.info("Generating optimum partitioning");
-					initializePartitioningGenerator();
-					m_optimizedPartitioning = m_partitioningGenerator.findOptimumPartitioning(m_workloadSampleStats);
+					consoleLog.info("Estimated execution time under current partitioning: " + estimatedExecTime);
 
-					if (m_optimizedPartitioning != null) {
-						consoleLog.info("Generated optimum partitioning:\n"
-								+ toString(m_optimizedPartitioning.getHostToPartitionsMap()));
-						consoleLog.info("Estimated execution time under optimum partitioning: "
-								+ m_optimizedPartitioning.getEstimatedExecTime());
+					if (m_lastEstimatedExecTimes.size() == LOOK_BACK_EPOCHS) {
+						long estimatedExecTimesMean = getEstimatedExecTimesMean();
+						long estimatedExecTimesStdDev = getEstimatedExecTimesStandardDeviation();
+						boolean shouldRepartition = false;
+
+						consoleLog.info("Mean of last-" + LOOK_BACK_EPOCHS + " estimated execution times: "
+								+ estimatedExecTimesMean);
+						consoleLog.info("Standard Deviation of last-" + LOOK_BACK_EPOCHS
+								+ " estimated execution times: " + estimatedExecTimesStdDev);
+
+						consoleLog.info("Generating optimum partitioning");
+						initializePartitioningGenerator();
+						m_optimizedPartitioning = m_partitioningGenerator
+								.findOptimumPartitioning(m_workloadSampleStats);
+
+						if (m_optimizedPartitioning != null) {
+							consoleLog.info("Generated optimum partitioning:\n"
+									+ toString(m_optimizedPartitioning.getHostToPartitionsMap()));
+							consoleLog.info("Estimated execution time under optimum partitioning: "
+									+ m_optimizedPartitioning.getEstimatedExecTime());
+
+							if (estimatedExecTime < estimatedExecTimesMean - 2 * estimatedExecTimesStdDev) {
+								consoleLog.info("Estimated execution time is worse than 95% of last-" + LOOK_BACK_EPOCHS
+										+ " execution times");
+
+								// Should repartition if the estimated execution
+								// time is worse than 95% of the last epochs
+								// This is an outlier an will not be remembered
+								// in the last-n estimated exec. times
+								shouldRepartition = true;
+							} else {
+								// Bump off the last remember execution time and
+								// remember this one
+								m_lastEstimatedExecTimes.removeFirst();
+								m_lastEstimatedExecTimes.addLast(estimatedExecTime);
+
+								if (m_optimizedPartitioning.getEstimatedExecTime() >= estimatedExecTime
+										* (1 + MIN_REPARTITIONING_GAIN_PCT)) {
+									consoleLog.info("Estimated execution time under optimum partitioning is more than "
+											+ (MIN_REPARTITIONING_GAIN_PCT * 100)
+											+ "% better than estimated execution time under current partitioning");
+
+									// Should repartition if the estimated gain
+									// from
+									// the optimized partitioning exceeds
+									// a minimum percentage of the estimated
+									// execution time on the current
+									// partitioning.
+									shouldRepartition = true;
+								} else if (m_optimizedPartitioning.getEstimatedExecTime() > (double) estimatedExecTime
+										&& m_numEpochsWithoutRepartition >= THRESHOLD_EPOCHS_WITHOUT_REPARTITION) {
+									consoleLog.info(m_numEpochsWithoutRepartition
+											+ " have passed without a repartitioning and there is a potential gain from the optimum partitioning");
+
+									shouldRepartition = true;
+									m_numEpochsWithoutRepartition = 0;
+								} else {
+									m_numEpochsWithoutRepartition++;
+								}
+							}
+
+							if (shouldRepartition) {
+								consoleLog.info("Executing stop and copy repartitioning");
+								
+								 m_stopAndCopyRun = new StopAndCopyRun();
+								 outstandingStopAndCopyMsgs = m_stopAndCopyRun
+								 .doStopAndCopy(m_optimizedPartitioning.getHostToPartitionsMap());
+								 isStoppingAndCopying = true;
+							}
+
+						} else {
+							consoleLog.warn("Could not generate optimum partitioning!");
+						}
+
 					} else {
-						consoleLog.warn("Could not generate optimum partitioning!");
+						m_lastEstimatedExecTimes.add(estimatedExecTime);
 					}
-
-					// TODO: Decide if we should repartition or not
-					m_stopAndCopyRun = new StopAndCopyRun();
-					outstandingStopAndCopyMsgs = m_stopAndCopyRun
-							.doStopAndCopy(m_optimizedPartitioning.getHostToPartitionsMap());
-					System.out.println("reinitializing stop and copy but waiting for " + outstandingStopAndCopyMsgs);
-					isStoppingAndCopying = true;
 				}
 
 				m_receivedTxnStats.clear();
