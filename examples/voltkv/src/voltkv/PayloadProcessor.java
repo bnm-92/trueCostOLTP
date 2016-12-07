@@ -115,7 +115,7 @@ public class PayloadProcessor
 		
         Integer randomIntForSkew = (int)(Math.random() * (8) + 1);
         String key2;
-        if (randomIntForSkew < 5) {
+        if (randomIntForSkew < 2) {
         	while (true) {
         		key2 = String.format(this.KeyFormat, this.Rand.nextInt(this.PoolSize));
         		if (TheHashinator.hashToPartition(key2, 8) < 5) {
