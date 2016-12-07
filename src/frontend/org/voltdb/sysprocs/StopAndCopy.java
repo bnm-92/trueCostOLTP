@@ -322,7 +322,10 @@ public class StopAndCopy extends VoltSystemProcedure {
 //        System.out.println("STC Prepare executed");
         results = executeSysProcPlanFragments(pfs, DEP_stcAggregate);
         VoltTable errorTable = results[0];
-        if (errorTable.getRowCount() > 0) {
+        if (errorTable == null) {
+        	System.out.println("aggregation table issues");
+        }
+        else if (errorTable.getRowCount() > 0) {
         	System.out.println("\n something bad happened, aggregate result is not null \n");
         } else {
         	System.out.println("STC decleration completed");
