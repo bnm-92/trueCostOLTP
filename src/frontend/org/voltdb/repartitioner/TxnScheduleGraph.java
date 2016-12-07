@@ -1,5 +1,6 @@
 package org.voltdb.repartitioner;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -135,8 +136,66 @@ public class TxnScheduleGraph {
 				/ (double) (sample.getSinglePartitionTxnStats().size() + sample.getMultiPartitionTxnStats().size());
 	}
 
-	public long getExecutionTime() {
-		return 0L;
+	public long getEstimatedExecutionTime(Map<Integer, ArrayList<Integer>> hostToPartitionsMap) {
+		BaseNode currNode = m_nodeChain.getHeadNode();
+		long execTime = 0;
+
+		while (currNode != null) {
+			ArrayList<Integer> hostPartitions = null;
+			TxnGroupStats txnStats = null;
+
+			if (currNode instanceof SerialNode) {
+				txnStats = ((SerialNode) currNode).getTxnGroupStats();
+				hostPartitions = hostToPartitionsMap.get(txnStats.getInitiatorHostId());
+				if (txnStats.isSinglePartition() && hostPartitions.indexOf(txnStats.getPartition()) != -1) {
+					execTime += txnStats.getNumTransactions() * txnStats.getLocalLatency();
+				} else {
+					execTime += txnStats.getNumTransactions() * (txnStats.getLocalLatency()
+							+ txnStats.getMedianRemotePartitionNetworkLatency(txnStats.getPartition()));
+				}
+			} else if (currNode instanceof ConcurrentNode) {
+				SerialNode currChainNode = null;
+				long maxChainExecTime = Long.MIN_VALUE;
+
+				for (NodeChain nodeChain : ((ConcurrentNode) currNode).getNodeChains()) {
+					long chainExecTime = 0L;
+					currChainNode = (SerialNode) nodeChain.getHeadNode();
+
+					while (currChainNode != null) {
+						txnStats = currChainNode.getTxnGroupStats();
+						hostPartitions = hostToPartitionsMap.get(txnStats.getInitiatorHostId());
+						if (txnStats.isSinglePartition() && hostPartitions.indexOf(txnStats.getPartition()) != -1) {
+							chainExecTime += txnStats.getNumTransactions() * txnStats.getLocalLatency();
+						} else {
+							chainExecTime += txnStats.getNumTransactions() * (txnStats.getLocalLatency()
+									+ txnStats.getMedianRemotePartitionNetworkLatency(txnStats.getPartition()));
+						}
+
+						currChainNode = (SerialNode) currChainNode.getNextNode();
+					}
+
+					if (chainExecTime > maxChainExecTime) {
+						maxChainExecTime = chainExecTime;
+					}
+				}
+
+				execTime += maxChainExecTime;
+			}
+
+			currNode = currNode.getNextNode();
+		}
+
+		return execTime;
+	}
+
+	public static long getEstimatedExecutionTime(WorkloadSampleStats sample,
+			Map<Integer, ArrayList<Integer>> hostToPartitionsMap) {
+		TxnScheduleGraph bestCaseSchedule = TxnScheduleGraph.getBestCaseSchedule(sample);
+		TxnScheduleGraph worstCaseSchedule = TxnScheduleGraph.getWorstCaseSchedule(sample);
+		double bestCaseScheduleProbability = TxnScheduleGraph.getBestCaseScheduleProbability(sample);
+
+		return Math.round(bestCaseScheduleProbability * bestCaseSchedule.getEstimatedExecutionTime(hostToPartitionsMap)
+				+ (1 - bestCaseScheduleProbability) * worstCaseSchedule.getEstimatedExecutionTime(hostToPartitionsMap));
 	}
 
 	/**
