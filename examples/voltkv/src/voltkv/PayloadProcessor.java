@@ -108,31 +108,7 @@ public class PayloadProcessor
     
     public Pair generateForStore()
     {
-        HashSet<Integer> hash_0 = new HashSet<Integer>();
-        hash_0.add(7);hash_0.add(5);hash_0.add(3);
-        HashSet<Integer> hash_1 = new HashSet<Integer>();
-        hash_1.add(0);hash_1.add(2);hash_1.add(5);hash_1.add(6);hash_1.add(1);
-		
-        Integer randomIntForSkew = (int)(Math.random() * (8) + 1);
-        String key2;
-        if (randomIntForSkew < 0) {
-        	while (true) {
-        		key2 = String.format(this.KeyFormat, this.Rand.nextInt(this.PoolSize));
-        		int partition = TheHashinator.hashToPartition(key2, 8);
-        		if (hash_0.contains(partition)) {
-        			break;
-        		}
-        	}
-        } else {
-        	while (true) {
-        		key2 = String.format(this.KeyFormat, this.Rand.nextInt(this.PoolSize));
-        		int partition = TheHashinator.hashToPartition(key2, 8);
-        		if (hash_1.contains(partition)) {
-        			break;
-        		}
-        	}
-        }
-        final String key = key2;
+        final String key = String.format(this.KeyFormat, this.Rand.nextInt(this.PoolSize));
         
     	final byte[] rawValue = new byte[this.MinValueSize+this.Rand.nextInt(this.MaxValueSize-this.MinValueSize+1)];
         if (entropyBytes.remaining() > rawValue.length){
@@ -149,7 +125,23 @@ public class PayloadProcessor
 
     public String generateRandomKeyForRetrieval()
     {
-        return String.format(this.KeyFormat, this.Rand.nextInt(this.PoolSize));
+        HashSet<Integer> hash_0 = new HashSet<Integer>();
+        hash_0.add(7);hash_0.add(5);hash_0.add(3);
+        HashSet<Integer> hash_1 = new HashSet<Integer>();
+        hash_1.add(0);hash_1.add(2);hash_1.add(5);hash_1.add(6);hash_1.add(1);
+		
+        Integer randomIntForSkew = (int)(Math.random() * (8) + 1);
+        String key2;
+        if (true){
+        	while (true) {
+        		key2 = String.format(this.KeyFormat, this.Rand.nextInt(this.PoolSize));
+        		int partition = TheHashinator.hashToPartition(key2, 8);
+        		if (hash_1.contains(partition)) {
+        			break;
+        		}
+        	}
+        }    	
+        return key2;
     }
 
     public Pair retrieveFromStore(String key, byte[] storeValue)
