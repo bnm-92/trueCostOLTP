@@ -33,7 +33,11 @@ public class StopAndCopyRun{
 					String destSite = (getDeadSiteForPartition(partition));
 					String srcHost = (getAliveHostForPartition(partition));
 					String srcSite = (getAliveSiteForPartition(partition));
+					System.out.println("starting stop and copy for : " + 
+							srcSite + " " + srcHost + " " + destSite + " " + destHost);
 					stopAndCopy(srcSite, srcHost, destSite, destHost);
+					System.out.println("stop and copy done for : " + 
+							srcSite + " " + srcHost + " " + destSite + " " + destHost);
 					commands.add(srcSite);
 					count++;
 					// add failing code later
