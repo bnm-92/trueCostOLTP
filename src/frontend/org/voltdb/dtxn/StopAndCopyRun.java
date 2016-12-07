@@ -44,10 +44,15 @@ public class StopAndCopyRun{
 	}
 	
 	boolean isLocal(int hostId, int partition) {
+//		System.out.println("hostid is : " + hostId);
+//		System.out.println("partition is : " + partition);
 		ArrayList<Integer> sites = st.m_hostsToSites.get(hostId);
 		for (int s: sites) {
 			Site site = st.getSiteForId(s);
-			if (site.getIsup() && Integer.parseInt(site.getPartition().getTypeName()) == partition) {
+//			System.out.println("site was : " + s);
+//			if (site == null)
+			if (site.getIsup() && site.getIsexec())
+				if (Integer.parseInt(site.getPartition().getTypeName()) == partition) {
 				return true;
 			}
 		}
