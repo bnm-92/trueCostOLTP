@@ -24,14 +24,25 @@ public class TrueCostCollector extends Thread {
 
 	private static final VoltLogger consoleLog = new VoltLogger("CONSOLE");
 
-	private static final int EPOCH_LENGTH_MS = 10000;
+	/**
+	 * Decide at the end of each epoch whether to repartition.
+	 * Length of the epoch.
+	 */
+	private static final int EPOCH_LENGTH_MS = 1000;
 
+	/**
+	 * Maximum number of partitions per host.
+	 * TODO: Retrieve this via configuration.
+	 */
 	private static final int MAX_PARTITIONS_PER_HOST = 5;
-
-	SiteMailbox m_mailbox = null;
-	int hostId = -1;
-	int siteId = -1;
-
+	
+	/**
+	 * At the end of each epoch we determine the estimated execution time of the sampled transactions
+	 * on the current partition. Used to determine whether to repartition.
+	 * Store the last N estimated execution times.
+	 */
+	private static final int LOOK_BACK_EPOCHS = 60;
+	
 	private static class TxnGroupLatencyStats {
 		private StatsList m_localLatencies = new StatsList();
 		private StatsList m_remoteLatencies = new StatsList();
@@ -57,22 +68,21 @@ public class TrueCostCollector extends Thread {
 		}
 	}
 
-	public int[] allHostIds;
-	public int[] allPartitionIds;
-	TxnGroupStatsKey txnGroupStatsKey = new TxnGroupStatsKey("", 0, 0);
-	ArrayList<TrueCostTransactionStats> receivedTxnStats = new ArrayList<TrueCostTransactionStats>();
-	Map<TxnGroupStatsKey, TxnGroupLatencyStats> txnGroupLatencyStatsMap = new HashMap<TxnGroupStatsKey, TxnGroupLatencyStats>();
-	public WorkloadSampleStats workloadSampleStats = new WorkloadSampleStats();
-	public PartitioningGenerator partitioningGenerator;
-	PartitioningGeneratorResult optimizedPartitioning;
-	StopAndCopyRun stopAndCopyRun;
+	private SiteMailbox m_mailbox = null;
+	private int[] m_allHostIds;
+	private int[] m_allPartitionIds;
+	private TxnGroupStatsKey m_txnGroupStatsKey = new TxnGroupStatsKey("", 0, 0);
+	private ArrayList<TrueCostTransactionStats> m_receivedTxnStats = new ArrayList<TrueCostTransactionStats>();
+	private Map<TxnGroupStatsKey, TxnGroupLatencyStats> m_txnGroupLatencyStatsMap = new HashMap<TxnGroupStatsKey, TxnGroupLatencyStats>();
+	private WorkloadSampleStats m_workloadSampleStats = new WorkloadSampleStats();
+	private PartitioningGenerator m_partitioningGenerator;
+	private PartitioningGeneratorResult m_optimizedPartitioning;
+	private StopAndCopyRun m_stopAndCopyRun;
 
-	TrueCostCollector(int siteId, int hostId) {
+	TrueCostCollector() {
 		setDaemon(true);
 
-		this.siteId = siteId;
-		this.hostId = hostId;
-		m_mailbox = (SiteMailbox) VoltDB.instance().getMessenger().createMailbox(siteId, VoltDB.COLLECTOR_MAILBOX_ID,
+		m_mailbox = (SiteMailbox) VoltDB.instance().getMessenger().createMailbox(0, VoltDB.COLLECTOR_MAILBOX_ID,
 				false);
 	}
 
@@ -83,26 +93,26 @@ public class TrueCostCollector extends Thread {
 		Set<Integer> hostIds = st.m_liveHostIds;
 		Set<Integer> siteIds = st.m_liveSiteIds;
 
-		allHostIds = new int[hostIds.size()];
-		allPartitionIds = new int[siteIds.size() - hostIds.size()];
+		m_allHostIds = new int[hostIds.size()];
+		m_allPartitionIds = new int[siteIds.size() - hostIds.size()];
 
 		for (Integer siteId : siteIds) {
 			Site site = st.getSiteForId(siteId);
 			if (site.getIsexec()) {
 				int partition = st.getPartitionForSite(siteId);
 				consoleLog.info("site being given for partitioning is" + siteId + " with partition: " + partition);
-				allPartitionIds[i] = partition;
+				m_allPartitionIds[i] = partition;
 				++i;
 			}
 		}
 
 		i = 0;
 		for (Integer hostId : hostIds) {
-			allHostIds[i] = hostId;
+			m_allHostIds[i] = hostId;
 			++i;
 		}
 
-		partitioningGenerator = new PartitioningGenerator(allHostIds, allPartitionIds, MAX_PARTITIONS_PER_HOST);
+		m_partitioningGenerator = new PartitioningGenerator(m_allHostIds, m_allPartitionIds, MAX_PARTITIONS_PER_HOST);
 	}
 
 	private String toString(Map<Integer, ArrayList<Integer>> map) {
@@ -145,7 +155,7 @@ public class TrueCostCollector extends Thread {
 		return false;
 	}
 
-	HashMap<Integer, ArrayList<Integer>> getCurrentMapping() {
+	HashMap<Integer, ArrayList<Integer>> getCurrentHostToPartititionsMap() {
 		HashMap<Integer, ArrayList<Integer>> hm = new HashMap<Integer, ArrayList<Integer>>();
 		SiteTracker st = VoltDB.instance().getCatalogContext().siteTracker;
 		Set<Integer> hosts = st.getAllLiveHosts();
@@ -162,19 +172,8 @@ public class TrueCostCollector extends Thread {
 		}
 		return hm;
 	}
-
-	public void run() {
-		while (!VoltDB.instance().isServerInitialized()) {
-			consoleLog.info("Transaction statistics collector waiting for VoltDB to start");
-			try {
-				Thread.sleep(1000);
-			} catch (InterruptedException e) {
-				// Swallow
-			}
-		}
-
-		// System.out.println("auto fail");
-
+	
+	private void initializeCrashedSites() {
 		SiteTracker st = VoltDB.instance().getCatalogContext().siteTracker;
 		Site[] sites = st.getAllSites();
 		boolean toggle = false;
@@ -202,7 +201,19 @@ public class TrueCostCollector extends Thread {
 				}
 			}
 		}
+	}
 
+	public void run() {
+		while (!VoltDB.instance().isServerInitialized()) {
+			consoleLog.info("Transaction statistics collector waiting for VoltDB to start");
+			try {
+				Thread.sleep(1000);
+			} catch (InterruptedException e) {
+				// Swallow
+			}
+		}
+
+		initializeCrashedSites();
 		initializePartitioningGenerator();
 
 		boolean isStoppingAndCopying = false;
@@ -224,22 +235,22 @@ public class TrueCostCollector extends Thread {
 							int coordinatorSiteId = txnStats.getCoordinatorSiteId();
 							int initiatorHostId = txnStats.getInitiatorHostId();
 
-							receivedTxnStats.add(txnStats);
+							m_receivedTxnStats.add(txnStats);
 
 							if (txnStats.isSinglePartition()) {
 								// Group together single-partition transactions
 								// executing stored procedure at initiator
-								txnGroupStatsKey.reset(txnStats.getProcedureName(), txnStats.getInitiatorHostId(), 0);
+								m_txnGroupStatsKey.reset(txnStats.getProcedureName(), txnStats.getInitiatorHostId(), 0);
 							} else {
 								// Group together multi-partition transactions
 								// executing at initiator
-								txnGroupStatsKey.reset(txnStats.getProcedureName(), txnStats.getInitiatorHostId());
+								m_txnGroupStatsKey.reset(txnStats.getProcedureName(), txnStats.getInitiatorHostId());
 							}
 
-							TxnGroupLatencyStats txnGroupLatencyStats = txnGroupLatencyStatsMap.get(txnGroupStatsKey);
+							TxnGroupLatencyStats txnGroupLatencyStats = m_txnGroupLatencyStatsMap.get(m_txnGroupStatsKey);
 							if (txnGroupLatencyStats == null) {
 								txnGroupLatencyStats = new TxnGroupLatencyStats();
-								txnGroupLatencyStatsMap.put(txnGroupStatsKey.clone(), txnGroupLatencyStats);
+								m_txnGroupLatencyStatsMap.put(m_txnGroupStatsKey.clone(), txnGroupLatencyStats);
 							}
 
 							if (txnStats.isSinglePartition()) {
@@ -271,7 +282,7 @@ public class TrueCostCollector extends Thread {
 						isStoppingAndCopying = outstandingStopAndCopyMsgs > 0;
 
 						if (!isStoppingAndCopying) {
-							stopAndCopyRun.crashSource();
+							m_stopAndCopyRun.crashSource();
 						}
 					}
 				}
@@ -280,10 +291,10 @@ public class TrueCostCollector extends Thread {
 			}
 
 			if (now >= epochEnd) {
-				if (receivedTxnStats.size() > 0) {
-					consoleLog.info("Received " + receivedTxnStats.size() + " transaction stats this epoch");
+				if (m_receivedTxnStats.size() > 0) {
+					consoleLog.info("Received " + m_receivedTxnStats.size() + " transaction stats this epoch");
 
-					for (Entry<TxnGroupStatsKey, TxnGroupLatencyStats> txnGroupLatencyStatsMapEntry : txnGroupLatencyStatsMap
+					for (Entry<TxnGroupStatsKey, TxnGroupLatencyStats> txnGroupLatencyStatsMapEntry : m_txnGroupLatencyStatsMap
 							.entrySet()) {
 						TxnGroupStatsKey txnGroupStatsKey = txnGroupLatencyStatsMapEntry.getKey();
 						TxnGroupLatencyStats txnGroupLatencyStats = txnGroupLatencyStatsMapEntry.getValue();
@@ -310,24 +321,24 @@ public class TrueCostCollector extends Thread {
 						}
 					}
 
-					for (TrueCostTransactionStats txnStats : receivedTxnStats) {
+					for (TrueCostTransactionStats txnStats : m_receivedTxnStats) {
 						TxnGroupLatencyStats txnGroupLatencyStats = null;
 						long localLatency = 0L;
 						long remoteLatency = 0L;
 
 						if (txnStats.isSinglePartition()) {
-							txnGroupStatsKey.reset(txnStats.getProcedureName(), txnStats.getInitiatorHostId(), 0);
-							txnGroupLatencyStats = txnGroupLatencyStatsMap.get(txnGroupStatsKey);
+							m_txnGroupStatsKey.reset(txnStats.getProcedureName(), txnStats.getInitiatorHostId(), 0);
+							txnGroupLatencyStats = m_txnGroupLatencyStatsMap.get(m_txnGroupStatsKey);
 
 							if (txnGroupLatencyStats != null) {
 								localLatency = txnGroupLatencyStats.getLocalLatency();
 								remoteLatency = txnGroupLatencyStats.getRemoteLatency();
 
 								if (localLatency > 0 && remoteLatency > 0) {
-									workloadSampleStats.addSinglePartitionTransaction(txnStats.getProcedureName(),
+									m_workloadSampleStats.addSinglePartitionTransaction(txnStats.getProcedureName(),
 											txnStats.getInitiatorHostId(), txnStats.getPartition(),
 											localLatency + remoteLatency);
-									workloadSampleStats.recordSinglePartitionTransactionRemotePartitionNetworkLatency(
+									m_workloadSampleStats.recordSinglePartitionTransactionRemotePartitionNetworkLatency(
 											txnStats.getProcedureName(), txnStats.getInitiatorHostId(),
 											txnStats.getPartition(), remoteLatency, true);
 								} else {
@@ -339,19 +350,19 @@ public class TrueCostCollector extends Thread {
 										"Could not get transaction group latency stats for transaction " + txnStats);
 							}
 						} else {
-							txnGroupStatsKey.reset(txnStats.getProcedureName(), txnStats.getInitiatorHostId());
-							txnGroupLatencyStats = txnGroupLatencyStatsMap.get(txnGroupStatsKey);
+							m_txnGroupStatsKey.reset(txnStats.getProcedureName(), txnStats.getInitiatorHostId());
+							txnGroupLatencyStats = m_txnGroupLatencyStatsMap.get(m_txnGroupStatsKey);
 
 							if (txnGroupLatencyStats != null) {
 								localLatency = txnGroupLatencyStats.getLocalLatency();
 								remoteLatency = txnGroupLatencyStats.getRemoteLatency();
 
 								if (localLatency > 0 && remoteLatency > 0) {
-									workloadSampleStats.addMultiPartitionTransaction(txnStats.getProcedureName(),
+									m_workloadSampleStats.addMultiPartitionTransaction(txnStats.getProcedureName(),
 											txnStats.getInitiatorHostId(), localLatency + remoteLatency);
 
-									for (int partition : allPartitionIds) {
-										workloadSampleStats
+									for (int partition : m_allPartitionIds) {
+										m_workloadSampleStats
 												.recordMultiPartitionTransactionRemotePartitionNetworkLatency(
 														txnStats.getProcedureName(), txnStats.getInitiatorHostId(),
 														partition, remoteLatency, true);
@@ -367,30 +378,31 @@ public class TrueCostCollector extends Thread {
 						}
 					}
 
+					consoleLog.info("Current partitioning:\n" + toString(getCurrentHostToPartititionsMap()));
 					consoleLog.info("Generating optimum partitioning");
 					initializePartitioningGenerator();
-					optimizedPartitioning = partitioningGenerator.findOptimumPartitioning(workloadSampleStats);
+					m_optimizedPartitioning = m_partitioningGenerator.findOptimumPartitioning(m_workloadSampleStats);
 
-					if (optimizedPartitioning != null) {
+					if (m_optimizedPartitioning != null) {
 						consoleLog.info("Generated optimum partitioning:\n"
-								+ toString(optimizedPartitioning.getHostToPartitionsMap()));
+								+ toString(m_optimizedPartitioning.getHostToPartitionsMap()));
 						consoleLog.info("Estimated execution time under optimum partitioning: "
-								+ optimizedPartitioning.getEstimatedExecTime());
+								+ m_optimizedPartitioning.getEstimatedExecTime());
 					} else {
 						consoleLog.warn("Could not generate optimum partitioning!");
 					}
 
 					// TODO: Decide if we should repartition or not
-					stopAndCopyRun = new StopAndCopyRun();
-					outstandingStopAndCopyMsgs = stopAndCopyRun
-							.doStopAndCopy(optimizedPartitioning.getHostToPartitionsMap());
+					m_stopAndCopyRun = new StopAndCopyRun();
+					outstandingStopAndCopyMsgs = m_stopAndCopyRun
+							.doStopAndCopy(m_optimizedPartitioning.getHostToPartitionsMap());
 					System.out.println("reinitializing stop and copy but waiting for " + outstandingStopAndCopyMsgs);
 					isStoppingAndCopying = true;
 				}
 
-				receivedTxnStats.clear();
-				txnGroupLatencyStatsMap.clear();
-				workloadSampleStats.clearStats();
+				m_receivedTxnStats.clear();
+				m_txnGroupLatencyStatsMap.clear();
+				m_workloadSampleStats.clearStats();
 
 				epochEnd = System.currentTimeMillis() + EPOCH_LENGTH_MS;
 			}
