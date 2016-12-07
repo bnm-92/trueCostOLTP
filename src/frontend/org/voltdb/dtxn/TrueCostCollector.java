@@ -10,6 +10,7 @@ import org.voltdb.VoltDB;
 import org.voltdb.catalog.Site;
 import org.voltdb.logging.VoltLogger;
 import org.voltdb.messaging.SiteMailbox;
+import org.voltdb.messaging.StopAndCopyDoneMessage;
 import org.voltdb.messaging.TrueCostTransactionStatsMessage;
 import org.voltdb.messaging.VoltMessage;
 import org.voltdb.repartitioner.PartitioningGenerator;
@@ -63,6 +64,7 @@ public class TrueCostCollector extends Thread {
 	public WorkloadSampleStats workloadSampleStats = new WorkloadSampleStats();
 	public PartitioningGenerator partitioningGenerator;
 	PartitioningGeneratorResult optimizedPartitioning;
+	StopAndCopyRun stopAndCopyRun;
 
 	TrueCostCollector(int siteId, int hostId) {
 		setDaemon(true);
@@ -154,6 +156,8 @@ public class TrueCostCollector extends Thread {
 
 		initializePartitioningGenerator();
 
+		boolean isStoppingAndCopying = false;
+		int outstandingStopAndCopyMsgs = 0;
 		long epochEnd = System.currentTimeMillis() + EPOCH_LENGTH_MS;
 
 		while (true) {
@@ -161,53 +165,68 @@ public class TrueCostCollector extends Thread {
 			long now = System.currentTimeMillis();
 
 			if (message != null) {
-				if (message instanceof TrueCostTransactionStatsMessage) {
-					TrueCostTransactionStats[] txnStatsList = ((TrueCostTransactionStatsMessage) message)
-							.getTxnStatsList();
+				if (!isStoppingAndCopying) {
+					if (message instanceof TrueCostTransactionStatsMessage) {
+						TrueCostTransactionStats[] txnStatsList = ((TrueCostTransactionStatsMessage) message)
+								.getTxnStatsList();
 
-					for (TrueCostTransactionStats txnStats : txnStatsList) {
-						long latency = Math.max(1, txnStats.getLatency());
-						int coordinatorSiteId = txnStats.getCoordinatorSiteId();
-						int initiatorHostId = txnStats.getInitiatorHostId();
+						for (TrueCostTransactionStats txnStats : txnStatsList) {
+							long latency = Math.max(1, txnStats.getLatency());
+							int coordinatorSiteId = txnStats.getCoordinatorSiteId();
+							int initiatorHostId = txnStats.getInitiatorHostId();
 
-						receivedTxnStats.add(txnStats);
+							receivedTxnStats.add(txnStats);
 
-						if (txnStats.isSinglePartition()) {
-							// Group together single-partition transactions
-							// executing stored procedure at initiator
-							txnGroupStatsKey.reset(txnStats.getProcedureName(), txnStats.getInitiatorHostId(), 0);
-						} else {
-							// Group together multi-partition transactions
-							// executing at initiator
-							txnGroupStatsKey.reset(txnStats.getProcedureName(), txnStats.getInitiatorHostId());
-						}
-
-						TxnGroupLatencyStats txnGroupLatencyStats = txnGroupLatencyStatsMap.get(txnGroupStatsKey);
-						if (txnGroupLatencyStats == null) {
-							txnGroupLatencyStats = new TxnGroupLatencyStats();
-							txnGroupLatencyStatsMap.put(txnGroupStatsKey.clone(), txnGroupLatencyStats);
-						}
-
-						if (txnStats.isSinglePartition()) {
-							if (isLocal(coordinatorSiteId, initiatorHostId)) {
-								// Coordinator and execution are the same, so
-								// recorded latency is local latency
-								txnGroupLatencyStats.addLocalLatency(latency);
+							if (txnStats.isSinglePartition()) {
+								// Group together single-partition transactions
+								// executing stored procedure at initiator
+								txnGroupStatsKey.reset(txnStats.getProcedureName(), txnStats.getInitiatorHostId(), 0);
 							} else {
-								// Execution site not on local host, record as a
-								// remote latency
-								txnGroupLatencyStats.addRemoteLatency(latency);
+								// Group together multi-partition transactions
+								// executing at initiator
+								txnGroupStatsKey.reset(txnStats.getProcedureName(), txnStats.getInitiatorHostId());
 							}
-						} else {
-							// Estimate the local latency to be 10% of the
-							// recorded latency
-							long localLatency = Math.max(1, Math.round((double) latency * 0.10));
 
-							txnGroupLatencyStats.addLocalLatency(localLatency);
-							txnGroupLatencyStats.addRemoteLatency(latency - localLatency);
+							TxnGroupLatencyStats txnGroupLatencyStats = txnGroupLatencyStatsMap.get(txnGroupStatsKey);
+							if (txnGroupLatencyStats == null) {
+								txnGroupLatencyStats = new TxnGroupLatencyStats();
+								txnGroupLatencyStatsMap.put(txnGroupStatsKey.clone(), txnGroupLatencyStats);
+							}
+
+							if (txnStats.isSinglePartition()) {
+								if (isLocal(coordinatorSiteId, initiatorHostId)) {
+									// Coordinator and execution are the same,
+									// so
+									// recorded latency is local latency
+									txnGroupLatencyStats.addLocalLatency(latency);
+								} else {
+									// Execution site not on local host, record
+									// as a
+									// remote latency
+									txnGroupLatencyStats.addRemoteLatency(latency);
+								}
+							} else {
+								// Estimate the local latency to be 10% of the
+								// recorded latency
+								long localLatency = Math.max(1, Math.round((double) latency * 0.10));
+
+								txnGroupLatencyStats.addLocalLatency(localLatency);
+								txnGroupLatencyStats.addRemoteLatency(latency - localLatency);
+							}
+						}
+					}
+				} else if (outstandingStopAndCopyMsgs > 0) {
+					if(message instanceof StopAndCopyDoneMessage) {
+						--outstandingStopAndCopyMsgs;
+						isStoppingAndCopying = outstandingStopAndCopyMsgs > 0;
+						
+						if(!isStoppingAndCopying) {
+							stopAndCopyRun.crashSource();
 						}
 					}
 				}
+			} else {
+				consoleLog.warn("Received a null message");
 			}
 
 			if (now >= epochEnd) {
@@ -310,6 +329,11 @@ public class TrueCostCollector extends Thread {
 					} else {
 						consoleLog.warn("Could not generate optimum partitioning!");
 					}
+					
+					// TODO: Decide if we should repartition or not
+					stopAndCopyRun = new StopAndCopyRun();
+					outstandingStopAndCopyMsgs = stopAndCopyRun.doStopAndCopy(optimizedPartitioning.getHostToPartitionsMap());
+					isStoppingAndCopying = true;
 				}
 
 				receivedTxnStats.clear();
