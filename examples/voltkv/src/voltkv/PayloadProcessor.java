@@ -122,25 +122,31 @@ public class PayloadProcessor
         else
             return new Pair(key, rawValue, null);
     }
-
+    public static String key_to_get = null;
     public String generateRandomKeyForRetrieval()
     {
         HashSet<Integer> hash_0 = new HashSet<Integer>();
         hash_0.add(7);hash_0.add(5);hash_0.add(3);
         HashSet<Integer> hash_1 = new HashSet<Integer>();
         hash_1.add(1);
-		
+        String key2 = null;
+        if (key_to_get == null) {
+        
         Integer randomIntForSkew = (int)(Math.random() * (8) + 1);
-        String key2;
+        
         if (true){
         	while (true) {
         		key2 = String.format(this.KeyFormat, this.Rand.nextInt(this.PoolSize));
         		int partition = TheHashinator.hashToPartition(key2, 8);
         		if (hash_1.contains(partition)) {
+        			key_to_get = key2;
         			break;
         		}
         	}
-        }    	
+        }
+        } else {
+        	key2 = key_to_get;
+        }
         return key2;
     }
 
