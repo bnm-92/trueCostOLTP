@@ -56,12 +56,12 @@ public class TrueCostCollector extends Thread {
 	 * If this number of epochs have passed without a repartitioning, then we
 	 * will repartition if there is any gain.
 	 */
-	private static final int THRESHOLD_EPOCHS_WITHOUT_REPARTITION = 60;
+	private static final int THRESHOLD_EPOCHS_WITHOUT_REPARTITION = 90;
 
 	/**
 	 * Number of epochs to ignore after the collector has just started up.
 	 */
-	private static final int IGNORE_EPOCHS_AFTER_STARTUP = 20;
+	private static final int IGNORE_EPOCHS_AFTER_STARTUP = 60;
 
 	/**
 	 * Number of epochs after a repartitioning has just occurred to ignore.
@@ -292,7 +292,7 @@ public class TrueCostCollector extends Thread {
 				} else if (txnGroupLatencyStats.getRemoteLatency() == 0) {
 					// Estimate the remote latency to be 2x the
 					// local latency
-					txnGroupLatencyStats.setRemoteLatency(txnGroupLatencyStats.getLocalLatency() * 2);
+					txnGroupLatencyStats.setRemoteLatency(txnGroupLatencyStats.getLocalLatency() + 1);
 				}
 				
 				if (txnGroupLatencyStats.getRemoteLatency() < txnGroupLatencyStats.getLocalLatency()) {
@@ -308,7 +308,7 @@ public class TrueCostCollector extends Thread {
 
 				// Indicates not a huge difference between local and remote
 				// latency
-				txnGroupLatencyStats.setRemoteLatency(txnGroupLatencyStats.getLocalLatency() * 2);
+				txnGroupLatencyStats.setRemoteLatency(txnGroupLatencyStats.getLocalLatency() + 1);
 			}
 			
 			consoleLog.info("Transaction group latency stats. Group: " + txnGroupStatsKey + ", Local: "
