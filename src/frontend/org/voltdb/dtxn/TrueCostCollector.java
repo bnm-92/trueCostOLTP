@@ -381,7 +381,7 @@ public class TrueCostCollector extends Thread {
 
 		if (IGNORE_EPOCHS_AFTER_STARTUP > 0) {
 			consoleLog.info("Transaction statistics collector will wait for "
-					+ IGNORE_EPOCHS_AFTER_REPARTITION * EPOCH_LENGTH_MS
+					+ IGNORE_EPOCHS_AFTER_STARTUP * EPOCH_LENGTH_MS
 					+ "ms before running repartitioning decision logic");
 
 			m_ignoreEpochs = IGNORE_EPOCHS_AFTER_STARTUP;
