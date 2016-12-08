@@ -280,7 +280,7 @@ public class TrueCostCollector extends Thread {
 			TxnGroupStatsKey txnGroupStatsKey = txnGroupLatencyStatsMapEntry.getKey();
 			TxnGroupLatencyStats txnGroupLatencyStats = txnGroupLatencyStatsMapEntry.getValue();
 
-			if (txnGroupLatencyStats.getLocalLatency() > 0 || txnGroupLatencyStats.getRemoteLatency() > 0) {
+			if (txnGroupLatencyStats.getLocalLatency() == 0 || txnGroupLatencyStats.getRemoteLatency() == 0) {
 				if (txnGroupLatencyStats.getLocalLatency() == 0) {
 					// Estimate the local latency to be 50% of the
 					// remote latency
@@ -290,6 +290,16 @@ public class TrueCostCollector extends Thread {
 				} else if (txnGroupLatencyStats.getRemoteLatency() == 0) {
 					// Estimate the remote latency to be 2x the
 					// local latency
+					txnGroupLatencyStats.setRemoteLatency(txnGroupLatencyStats.getLocalLatency() * 2);
+				}
+				
+				if (txnGroupLatencyStats.getRemoteLatency() < txnGroupLatencyStats.getLocalLatency()) {
+					consoleLog.warn("Greater local latency (" + txnGroupLatencyStats.getLocalLatency()
+							+ "ms) than remote latency (" + txnGroupLatencyStats.getRemoteLatency()
+							+ "s) recorded for transaction group " + txnGroupLatencyStatsMapEntry.getKey());
+
+					// Indicates not a huge difference between local and remote
+					// latency
 					txnGroupLatencyStats.setRemoteLatency(txnGroupLatencyStats.getLocalLatency() * 2);
 				}
 
@@ -303,7 +313,7 @@ public class TrueCostCollector extends Thread {
 
 				// Indicates not a huge difference between local and remote
 				// latency
-				txnGroupLatencyStats.setRemoteLatency(txnGroupLatencyStats.getLocalLatency());
+				txnGroupLatencyStats.setRemoteLatency(txnGroupLatencyStats.getLocalLatency() * 2);
 			} else {
 				consoleLog.warn("Could not get local or remote latency for transaction group "
 						+ txnGroupLatencyStatsMapEntry.getKey());
