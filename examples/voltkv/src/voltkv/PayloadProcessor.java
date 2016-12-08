@@ -128,7 +128,7 @@ public class PayloadProcessor
         HashSet<Integer> hash_0 = new HashSet<Integer>();
         hash_0.add(7);hash_0.add(5);hash_0.add(3);
         HashSet<Integer> hash_1 = new HashSet<Integer>();
-        hash_1.add(2);
+        hash_1.add(1);
 		
         Integer randomIntForSkew = (int)(Math.random() * (8) + 1);
         String key2;
