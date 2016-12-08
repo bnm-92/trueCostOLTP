@@ -573,8 +573,29 @@ public class TrueCostCollector extends Thread {
 				} else {
 					consoleLog.info("Did not run repartitioning decision logic this epoch");
 
+<<<<<<< Updated upstream
 					// Epoch ignored
 					m_ignoreEpochs = Math.max(0, m_ignoreEpochs - 1);
+=======
+					consoleLog.info("Generating optimum partitioning");
+					initializePartitioningGenerator();
+					optimizedPartitioning = partitioningGenerator.findOptimumPartitioning(workloadSampleStats);
+
+					if (optimizedPartitioning != null) {
+						consoleLog.info("Generated optimum partitioning:\n"
+								+ toString(optimizedPartitioning.getHostToPartitionsMap()));
+						consoleLog.info("Estimated execution time under optimum partitioning: "
+								+ optimizedPartitioning.getEstimatedExecTime());
+					} else {
+						consoleLog.warn("Could not generate optimum partitioning!");
+					}
+					
+					// TODO: Decide if we should repartition or not
+//					stopAndCopyRun = new StopAndCopyRun();
+//					outstandingStopAndCopyMsgs = stopAndCopyRun.doStopAndCopy(optimizedPartitioning.getHostToPartitionsMap());
+//					System.out.println("reinitializing stop and copy but waiting for " + outstandingStopAndCopyMsgs);
+//					isStoppingAndCopying = true;
+>>>>>>> Stashed changes
 				}
 
 				m_receivedTxnStats.clear();
