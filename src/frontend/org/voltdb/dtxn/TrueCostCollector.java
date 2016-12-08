@@ -372,7 +372,7 @@ public class TrueCostCollector extends Thread {
 			}
 		}
 
-//		initializeCrashedSites();
+		initializeCrashedSites();
 		initializePartitioningGenerator();
 
 		boolean isStoppingAndCopying = false;
