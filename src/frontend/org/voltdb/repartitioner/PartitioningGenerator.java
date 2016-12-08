@@ -3,6 +3,7 @@ package org.voltdb.repartitioner;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import net.sf.javailp.Linear;
 import net.sf.javailp.Operator;
@@ -118,7 +119,7 @@ public class PartitioningGenerator {
 		createPartitionAssignmentVars();
 	}
 
-	public PartitioningGeneratorResult findOptimumPartitioning(WorkloadSampleStats sample) {
+	public PartitioningGeneratorResult findOptimumPartitioning(Map<Integer, ArrayList<Integer>> currentHostToPartitionsMap, WorkloadSampleStats sample, int maxPartitionsMoved) {
 		Integer constraintNum = 1;
 		int latencyVariableIndex = 1;
 		int maxVariableIndex = 1;
@@ -134,6 +135,33 @@ public class PartitioningGenerator {
 				m_ilp.setVarType(m_partitionAssignmentVariables[i][j], VarType.BOOL);
 			}
 		}
+		
+		// p_ij = 1 => partition i assigned to host j
+		// If in current mapping p_i assigned to host j add constraint
+		// p_k = 1 - p_ij
+		// sum of p_k's <= movement limit
+		int k = 1;
+		Linear movementConstraintLHS = new Linear();
+		for(Entry<Integer, ArrayList<Integer>> currentHostToPartitionsMapEntry : currentHostToPartitionsMap.entrySet()) {
+			int hostId = currentHostToPartitionsMapEntry.getKey();
+			int hostIdx = m_hostIdToIndex.get(hostId);
+			
+			for(Integer partitionId : currentHostToPartitionsMapEntry.getValue()) {
+				String pkVar = "p_" + k;
+				int partitionIdx = m_partitionIdToIndex.get(partitionId);
+				
+				m_ilp.setVarType(pkVar, VarType.BOOL);
+				constraintLHS = new Linear();
+				constraintLHS.add(1, pkVar);
+				constraintLHS.add(1, m_partitionAssignmentVariables[partitionIdx-1][hostIdx-1]);
+				m_ilp.add(constraintLHS, Operator.EQ, 1);
+				System.out.println(constraintLHS);
+				movementConstraintLHS.add(1, pkVar);
+				++k;
+			}
+		}
+		m_ilp.add(movementConstraintLHS, Operator.LE, maxPartitionsMoved);
+		System.out.println(movementConstraintLHS);
 
 		// Add constraints so that each partition is only assigned to one host
 		for (int i = 0; i < m_numPartitions; ++i) {

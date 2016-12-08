@@ -372,7 +372,7 @@ public class TrueCostCollector extends Thread {
 			}
 		}
 
-		initializeCrashedSites();
+//		initializeCrashedSites();
 		initializePartitioningGenerator();
 
 		boolean isStoppingAndCopying = false;
@@ -388,7 +388,7 @@ public class TrueCostCollector extends Thread {
 		}
 
 		while (true) {
-			VoltMessage message = m_mailbox.recvBlocking(Math.max(0, System.currentTimeMillis() - epochEnd));
+			VoltMessage message = m_mailbox.recvBlocking(m_ignoreEpochs > 0 ? EPOCH_LENGTH_MS : Math.max(0, System.currentTimeMillis() - epochEnd));
 			long now = System.currentTimeMillis();
 
 			if (message != null) {
@@ -489,7 +489,7 @@ public class TrueCostCollector extends Thread {
 							consoleLog.info("Generating optimum partitioning");
 							initializePartitioningGenerator();
 							m_optimizedPartitioning = m_partitioningGenerator
-									.findOptimumPartitioning(m_workloadSampleStats);
+									.findOptimumPartitioning(getCurrentHostToPartititionsMap(), m_workloadSampleStats, 2);
 
 							if (m_optimizedPartitioning != null) {
 								consoleLog.info("Generated optimum partitioning:\n"
