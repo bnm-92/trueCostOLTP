@@ -279,8 +279,10 @@ public class TrueCostCollector extends Thread {
 				.entrySet()) {
 			TxnGroupStatsKey txnGroupStatsKey = txnGroupLatencyStatsMapEntry.getKey();
 			TxnGroupLatencyStats txnGroupLatencyStats = txnGroupLatencyStatsMapEntry.getValue();
-
+			
 			if (txnGroupLatencyStats.getLocalLatency() == 0 || txnGroupLatencyStats.getRemoteLatency() == 0) {
+				// Either there were no local txns or no remote txns
+				
 				if (txnGroupLatencyStats.getLocalLatency() == 0) {
 					// Estimate the local latency to be 50% of the
 					// remote latency
@@ -294,18 +296,11 @@ public class TrueCostCollector extends Thread {
 				}
 				
 				if (txnGroupLatencyStats.getRemoteLatency() < txnGroupLatencyStats.getLocalLatency()) {
-					consoleLog.warn("Greater local latency (" + txnGroupLatencyStats.getLocalLatency()
+					// Indicates a logic error above
+					throw new RuntimeException("Greater local latency (" + txnGroupLatencyStats.getLocalLatency()
 							+ "ms) than remote latency (" + txnGroupLatencyStats.getRemoteLatency()
 							+ "s) recorded for transaction group " + txnGroupLatencyStatsMapEntry.getKey());
-
-					// Indicates not a huge difference between local and remote
-					// latency
-					txnGroupLatencyStats.setRemoteLatency(txnGroupLatencyStats.getLocalLatency() * 2);
 				}
-
-				consoleLog.info("Transaction group latency stats. Group: " + txnGroupStatsKey + ", Local: "
-						+ txnGroupLatencyStats.getLocalLatency() + "ms, Remote: "
-						+ txnGroupLatencyStats.getRemoteLatency() + "ms");
 			} else if (txnGroupLatencyStats.getRemoteLatency() < txnGroupLatencyStats.getLocalLatency()) {
 				consoleLog.warn("Greater local latency (" + txnGroupLatencyStats.getLocalLatency()
 						+ "ms) than remote latency (" + txnGroupLatencyStats.getRemoteLatency()
@@ -314,10 +309,11 @@ public class TrueCostCollector extends Thread {
 				// Indicates not a huge difference between local and remote
 				// latency
 				txnGroupLatencyStats.setRemoteLatency(txnGroupLatencyStats.getLocalLatency() * 2);
-			} else {
-				consoleLog.warn("Could not get local or remote latency for transaction group "
-						+ txnGroupLatencyStatsMapEntry.getKey());
 			}
+			
+			consoleLog.info("Transaction group latency stats. Group: " + txnGroupStatsKey + ", Local: "
+					+ txnGroupLatencyStats.getLocalLatency() + "ms, Remote: "
+					+ txnGroupLatencyStats.getRemoteLatency() + "ms");
 		}
 
 		for (TrueCostTransactionStats txnStats : m_receivedTxnStats) {
@@ -525,8 +521,8 @@ public class TrueCostCollector extends Thread {
 									m_lastEstimatedExecTimes.removeFirst();
 									m_lastEstimatedExecTimes.addLast(estimatedExecTime);
 
-									if (m_optimizedPartitioning.getEstimatedExecTime() <= estimatedExecTime
-											* (1 - MIN_REPARTITIONING_GAIN_PCT)) {
+									if (Math.round(m_optimizedPartitioning.getEstimatedExecTime()) <= Math
+											.round((double) estimatedExecTime * (1 - MIN_REPARTITIONING_GAIN_PCT))) {
 										consoleLog
 												.info("Estimated execution time under optimum partitioning is at least "
 														+ (MIN_REPARTITIONING_GAIN_PCT * 100)
@@ -540,8 +536,8 @@ public class TrueCostCollector extends Thread {
 										// execution time on the current
 										// partitioning.
 										shouldRepartition = true;
-									} else if (m_optimizedPartitioning
-											.getEstimatedExecTime() < (double) estimatedExecTime
+									} else if (Math.round(m_optimizedPartitioning
+											.getEstimatedExecTime()) < estimatedExecTime
 											&& m_numEpochsWithoutRepartition >= THRESHOLD_EPOCHS_WITHOUT_REPARTITION) {
 										consoleLog.info(m_numEpochsWithoutRepartition
 												+ " have passed without a repartitioning and there is a potential gain from the optimum partitioning");
