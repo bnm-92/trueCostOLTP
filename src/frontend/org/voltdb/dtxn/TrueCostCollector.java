@@ -325,10 +325,10 @@ public class TrueCostCollector extends Thread {
 
 					if (localLatency > 0 && remoteLatency > 0) {
 						m_workloadSampleStats.addSinglePartitionTransaction(txnStats.getProcedureName(),
-								txnStats.getInitiatorHostId(), txnStats.getPartition(), localLatency + remoteLatency);
+								txnStats.getInitiatorHostId(), txnStats.getPartition(), remoteLatency);
 						m_workloadSampleStats.recordSinglePartitionTransactionRemotePartitionNetworkLatency(
 								txnStats.getProcedureName(), txnStats.getInitiatorHostId(), txnStats.getPartition(),
-								remoteLatency, true);
+								remoteLatency - localLatency, false);
 					} else {
 						consoleLog.warn("Could not get local and remote latency stats for transaction " + txnStats);
 					}
@@ -350,7 +350,7 @@ public class TrueCostCollector extends Thread {
 						for (int partition : m_allPartitionIds) {
 							m_workloadSampleStats.recordMultiPartitionTransactionRemotePartitionNetworkLatency(
 									txnStats.getProcedureName(), txnStats.getInitiatorHostId(), partition,
-									remoteLatency, true);
+									remoteLatency, false);
 						}
 					} else {
 						consoleLog.warn("Could not get local and remote latency stats for transaction " + txnStats);
@@ -568,7 +568,7 @@ public class TrueCostCollector extends Thread {
 					consoleLog.info("Did not run repartitioning decision logic this epoch");
 
 					// Epoch ignored
-					m_ignoreEpochs -= 1;
+					m_ignoreEpochs = Math.max(0, m_ignoreEpochs - 1);
 				}
 
 				m_receivedTxnStats.clear();
